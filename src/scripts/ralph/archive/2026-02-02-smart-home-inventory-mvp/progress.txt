@@ -1,0 +1,43 @@
+# Ralph Progress Log
+# Project: Ownly - Push Notification System
+# Branch: ralph/push-notifications
+# Created: 2026-02-01
+
+## Codebase Patterns
+
+### From Previous MVP Implementation
+- Uses Tailwind CSS v4 with @tailwindcss/vite plugin (no tailwind.config.js needed)
+- Uses TanStack React Query for server state management
+- Uses React Router v6 for navigation
+- Mobile-first design approach
+- Supabase client in `/src/lib/supabase.ts` - import { supabase } from '@/lib/supabase'
+- Use `import.meta.env.VITE_*` for environment variables (Vite pattern)
+- SQL migrations in `supabase/migrations/` with timestamp prefix (YYYYMMDDHHMMSS_description.sql)
+- Types exported from `/src/types/index.ts` - import { Item, Profile, etc. } from '@/types'
+- Path alias `@/` configured - use `import { x } from '@/lib/...'`
+- Supabase Edge Functions in `supabase/functions/{function-name}/index.ts` - use Deno runtime with esm.sh imports
+- Edge Function auth validation: create Supabase client with user token, call auth.getUser() to verify
+
+### Existing Push Infrastructure
+- `push_subscriptions` table exists with `endpoint`, `p256dh`, `auth` columns
+- `usePushNotifications` hook at `/src/hooks/usePushNotifications.ts` handles permission flow and subscription storage
+- `notifications` table has `is_pushed`, `pushed_at`, `data` columns ready
+- `user_settings` has marketplace notification preferences columns
+- Supabase Realtime already used for chat in `useMessages.subscribeToMessages()`
+- Service worker configured via vite-plugin-pwa in vite.config.ts
+
+### Key Files for This Feature
+- `/src/hooks/useMessages.ts` - Chat messaging with Supabase Realtime
+- `/src/pages/MessagesPage.tsx` - Conversations list
+- `/src/pages/ChatPage.tsx` - Chat UI
+- `/src/pages/NotificationsPage.tsx` - Notification center (to be enhanced)
+- `/src/hooks/useNotifications.ts` - Notification management
+- `/src/hooks/usePushNotifications.ts` - Push permission handling
+
+---
+
+## Progress
+
+*(Implementation progress will be logged below)*
+
+---

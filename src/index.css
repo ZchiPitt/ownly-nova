@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  
+  --color-cream: #fdf8f2;
+  --color-surface: #f5ebe0;
+  --color-camel: #d6ccc2;
+  --color-brown: #4a3f35;
+  --color-sage: #e3ead3;
+  --color-rose: #eecfd4;
+  --color-misty: #d8e2dc;
+  --color-apricot: #f8e1d7;
+  --color-cherry: #fbc4ab;
+  --color-mint: #d0f4de;
+
+  --shadow-soft: 0 20px 50px rgba(74, 63, 53, 0.08);
+  --shadow-extra-soft: 0 10px 30px rgba(74, 63, 53, 0.04);
+
+  @keyframes breathing {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+}
+
+.animate-breathing {
+  animation: breathing 4s ease-in-out infinite;
+}
+
+.soft-shadow {
+  box-shadow: var(--shadow-soft);
+}
+
+.extra-soft-shadow {
+  box-shadow: var(--shadow-extra-soft);
+}
+
+.glass {
+  @apply backdrop-blur-md bg-white/70;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Mobile-first base styles for Ownly */
+:root {
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #F8FAFC; /* Slate-50 */
+  color: #1e293b; /* Slate-800 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Scrollbar hiding utility */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Safe area padding utilities for iOS */
+.safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pb-safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}

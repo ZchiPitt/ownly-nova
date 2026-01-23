@@ -1,0 +1,1601 @@
+{
+  "project": "Ownly",
+  "branchName": "ralph/smart-home-inventory-mvp",
+  "description": "Smart Home Inventory App - A PWA that helps users track household belongings through AI-powered photo recognition with intelligent tagging, location tracking, and smart search",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Initialize React project with TypeScript and Tailwind",
+      "description": "As a developer, I need the base project setup with React 18, TypeScript, Tailwind CSS, and React Router.",
+      "acceptanceCriteria": [
+        "Create React app with Vite and TypeScript template",
+        "Install and configure Tailwind CSS with mobile-first defaults",
+        "Install React Router v6 for navigation",
+        "Install React Query for server state management",
+        "Create base folder structure: /src/components, /src/pages, /src/hooks, /src/lib, /src/types",
+        "App runs on localhost without errors",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Foundation - must complete first"
+    },
+    {
+      "id": "US-002",
+      "title": "Configure Supabase client and environment",
+      "description": "As a developer, I need Supabase client configured for authentication, database, and storage.",
+      "acceptanceCriteria": [
+        "Install @supabase/supabase-js package",
+        "Create /src/lib/supabase.ts with client initialization",
+        "Create .env.example with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY placeholders",
+        "Add .env to .gitignore",
+        "Export typed supabase client",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create database schema - profiles table",
+      "description": "As a developer, I need the profiles table to extend Supabase Auth user data.",
+      "acceptanceCriteria": [
+        "Create SQL migration file for profiles table",
+        "Fields: id (uuid PK), user_id (uuid FK to auth.users, unique), display_name (varchar 50), avatar_url (text nullable), created_at, updated_at",
+        "Enable RLS on profiles table",
+        "Add policy: users can only read/update their own profile",
+        "Add trigger to create profile on auth.users insert",
+        "Migration runs successfully",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create database schema - user_settings table",
+      "description": "As a developer, I need user_settings table for personalization preferences.",
+      "acceptanceCriteria": [
+        "Create SQL migration file for user_settings table",
+        "Fields: id (uuid PK), user_id (uuid FK unique), reminder_enabled (bool default true), reminder_threshold_days (int default 90), expiration_reminder_days (int default 7), push_notifications_enabled (bool default false), default_view (varchar 20 default 'gallery'), created_at, updated_at",
+        "Enable RLS with user-only access policy",
+        "Add trigger to create settings on profile insert",
+        "Migration runs successfully",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create database schema - categories table with system presets",
+      "description": "As a developer, I need categories table with system presets and user-defined support.",
+      "acceptanceCriteria": [
+        "Create SQL migration file for categories table",
+        "Fields: id (uuid PK), user_id (uuid FK nullable), name (varchar 50), icon (varchar 10 default box emoji), color (varchar 7 default gray), is_system (bool default false), sort_order (int default 0), created_at",
+        "Enable RLS: system categories readable by all, user categories only by owner",
+        "Insert 10 system preset categories: Clothing, Food & Beverage, Electronics, Kitchen, Sports & Fitness, Tools, Books & Documents, Personal Care, Home Decor, Other",
+        "Migration runs successfully",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create database schema - locations table",
+      "description": "As a developer, I need locations table with unlimited hierarchy support.",
+      "acceptanceCriteria": [
+        "Create SQL migration file for locations table",
+        "Fields: id (uuid PK), user_id (uuid FK), name (varchar 100), parent_id (uuid FK self-ref nullable), path (text), depth (int default 1), icon (varchar 10 default pin emoji), photo_url (text nullable), item_count (int default 0), created_at, updated_at, deleted_at (nullable)",
+        "Enable RLS with user-only access policy",
+        "Add index on user_id and parent_id",
+        "Migration runs successfully",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create database schema - items table",
+      "description": "As a developer, I need the core items table for inventory storage.",
+      "acceptanceCriteria": [
+        "Create SQL migration file for items table",
+        "Fields: id (uuid PK), user_id (uuid FK), photo_url (text NOT NULL), thumbnail_url (text nullable), name (varchar 200 nullable), description (text nullable), category_id (uuid FK nullable), tags (text array default empty), location_id (uuid FK nullable), quantity (int default 1), price (decimal 10,2 nullable), currency (varchar 3 default CNY), purchase_date (date nullable), expiration_date (date nullable), brand (varchar 100 nullable), model (varchar 100 nullable), notes (text nullable), is_favorite (bool default false), keep_forever (bool default false), ai_metadata (jsonb nullable), last_viewed_at (timestamptz nullable), created_at, updated_at, deleted_at (nullable)",
+        "Enable RLS with user-only access policy",
+        "Add indexes on user_id, category_id, location_id, deleted_at",
+        "Migration runs successfully",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create database schema - notifications table",
+      "description": "As a developer, I need notifications table for reminder system.",
+      "acceptanceCriteria": [
+        "Create SQL migration file for notifications table",
+        "Fields: id (uuid PK), user_id (uuid FK), type (varchar 30: unused_item, expiring_item, system), title (varchar 200), body (text), item_id (uuid FK nullable), is_read (bool default false), is_pushed (bool default false), pushed_at (timestamptz nullable), created_at",
+        "Enable RLS with user-only access policy",
+        "Add index on user_id and is_read",
+        "Migration runs successfully",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Create database trigger - location item_count maintenance",
+      "description": "As a developer, I need automatic item_count updates on locations.",
+      "acceptanceCriteria": [
+        "Create SQL function to increment/decrement location.item_count",
+        "Create trigger on items table: increment on insert (if location_id set), decrement on delete/soft-delete, adjust on location_id update",
+        "Handle null location_id cases (no-op)",
+        "Trigger fires correctly on item operations",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Enable pgvector extension and add embedding column",
+      "description": "As a developer, I need vector storage for AI similarity detection.",
+      "acceptanceCriteria": [
+        "Create SQL migration to enable pgvector extension",
+        "Add embedding column to items table: vector(1536) nullable",
+        "Add index on embedding column using ivfflat or hnsw",
+        "Create function for cosine similarity search",
+        "Migration runs successfully",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create TypeScript types for database entities",
+      "description": "As a developer, I need TypeScript interfaces matching database schema.",
+      "acceptanceCriteria": [
+        "Create /src/types/database.ts with interfaces: Profile, UserSettings, Category, Location, Item, Notification",
+        "Create /src/types/api.ts with request/response types",
+        "All fields match database schema with proper TypeScript types",
+        "Export all types from /src/types/index.ts",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create Supabase storage bucket for item images",
+      "description": "As a developer, I need storage bucket configured for item photos.",
+      "acceptanceCriteria": [
+        "Create SQL migration or manual setup for 'items' storage bucket",
+        "Configure RLS: users can only upload to items/{user_id}/* path",
+        "Configure RLS: users can only read their own files",
+        "Set file size limit to 10MB",
+        "Allow MIME types: image/jpeg, image/png, image/webp, image/heic",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create authentication context and hooks",
+      "description": "As a developer, I need React context for authentication state management.",
+      "acceptanceCriteria": [
+        "Create /src/contexts/AuthContext.tsx with AuthProvider",
+        "Context provides: user, session, loading, signUp, signIn, signOut, resetPassword",
+        "Create /src/hooks/useAuth.ts hook to consume context",
+        "Listen to onAuthStateChange for session updates",
+        "Handle token expiry with redirect to login",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Create protected route wrapper component",
+      "description": "As a developer, I need route protection for authenticated pages.",
+      "acceptanceCriteria": [
+        "Create /src/components/ProtectedRoute.tsx component",
+        "Check authentication status from AuthContext",
+        "If not authenticated: redirect to /login with redirect param preserving original path",
+        "Show loading spinner while checking auth status",
+        "Wrap children when authenticated",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Create app shell with bottom navigation",
+      "description": "As a developer, I need the main app layout with bottom navigation bar.",
+      "acceptanceCriteria": [
+        "Create /src/components/layout/AppShell.tsx with header and bottom nav areas",
+        "Create /src/components/layout/BottomNav.tsx with 4 tabs: Home, Add (center prominent), Inventory, Settings",
+        "Bottom nav fixed at bottom, 56px height, white background with top border",
+        "Active tab highlighted with primary color",
+        "Center Add button larger/prominent (FAB style)",
+        "Tabs navigate to: /dashboard, /add, /inventory, /settings",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Create registration page UI",
+      "description": "As a user, I want to create an account with email and password.",
+      "acceptanceCriteria": [
+        "Create /src/pages/SignupPage.tsx at route /signup",
+        "Form fields: email input, password input, confirm password input",
+        "Create Account button disabled until all validations pass",
+        "Real-time validation: valid email format, password min 8 chars, passwords match",
+        "Show inline validation errors below each field",
+        "Footer link: Already have an account? Log in -> /login",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Implement registration form submission",
+      "description": "As a user, I want my registration to create an account and log me in.",
+      "acceptanceCriteria": [
+        "Connect form to AuthContext signUp function",
+        "Button shows loading spinner during submission",
+        "On success: auto-login, redirect to /dashboard",
+        "On email exists error: show 'This email is already registered' with login link",
+        "On network error: show toast 'Network connection failed'",
+        "On other errors: show toast 'Registration failed. Please try again later'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Create login page UI",
+      "description": "As a user, I want to log in with my email and password.",
+      "acceptanceCriteria": [
+        "Create /src/pages/LoginPage.tsx at route /login",
+        "Form fields: email input, password input",
+        "Log in button, shows loading state during submission",
+        "Forgot password? link -> /reset-password",
+        "Footer: Don't have an account? Sign up -> /signup",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Implement login form submission",
+      "description": "As a user, I want to log in and access my inventory.",
+      "acceptanceCriteria": [
+        "Connect form to AuthContext signIn function",
+        "On success: redirect to /dashboard (or redirect param if present)",
+        "On invalid credentials: show 'Invalid email or password'",
+        "On network error: show toast 'Network connection failed'",
+        "Authenticated users visiting /login redirect to /dashboard",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Create logout functionality in settings",
+      "description": "As a user, I want to log out from my account.",
+      "acceptanceCriteria": [
+        "Create /src/pages/SettingsPage.tsx at route /settings",
+        "Add red Log out button at bottom of settings",
+        "Click shows confirmation dialog: 'Are you sure you want to log out?'",
+        "Confirm calls AuthContext signOut, redirects to /login",
+        "Show toast 'Logged out successfully'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Create password reset request page",
+      "description": "As a user, I want to request a password reset email.",
+      "acceptanceCriteria": [
+        "Create /src/pages/ResetPasswordPage.tsx at route /reset-password",
+        "Form: email input, Send Reset Email button",
+        "Helper text: 'Enter your registered email...'",
+        "On submit: call supabase.auth.resetPasswordForEmail",
+        "Always show success message (security): 'Reset email sent to xxx@xxx.com'",
+        "Add Resend button with 60-second cooldown",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Create password reset confirmation page",
+      "description": "As a user, I want to set a new password from the reset link.",
+      "acceptanceCriteria": [
+        "Create route /reset-password/confirm",
+        "Form: new password, confirm password inputs",
+        "Password validation: min 8 chars, must match",
+        "On success: redirect to /login with toast 'Password reset successfully'",
+        "On expired/invalid token: show 'This link has expired' with Request New Link button",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Create image upload utility with compression",
+      "description": "As a developer, I need utility functions for image processing and upload.",
+      "acceptanceCriteria": [
+        "Create /src/lib/imageUtils.ts",
+        "Function compressImage: resize and compress to max 2MB, return Blob",
+        "Function convertHeicToJpeg: convert HEIC to JPEG using heic2any library",
+        "Function validateImage: check min 200x200, supported formats (JPEG, PNG, HEIC, WebP)",
+        "Function uploadToStorage: upload to Supabase storage items/{user_id}/{uuid}.jpg, return URL",
+        "Function generateThumbnail: create 200x200 thumbnail",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Create Add Item page with photo capture UI",
+      "description": "As a user, I want to take or select a photo to add an item.",
+      "acceptanceCriteria": [
+        "Create /src/pages/AddItemPage.tsx at route /add",
+        "Page title: 'Add Item'",
+        "Two action cards: Take Photo (camera icon), Choose from Gallery (image icon)",
+        "Helper text: 'Take a photo of your item and AI will help identify it'",
+        "Take Photo triggers input with capture='environment'",
+        "Choose from Gallery triggers file input accepting image/*",
+        "Handle camera permission denied with alert and fallback option",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Create photo preview step with retake option",
+      "description": "As a user, I want to preview my photo before AI analysis.",
+      "acceptanceCriteria": [
+        "After photo captured/selected, show full-screen preview",
+        "Display image with pinch-to-zoom support",
+        "Bottom buttons: Retake/Reselect (left), Continue (right, primary)",
+        "Retake returns to capture options",
+        "Continue proceeds to AI analysis",
+        "Validate image (size, format) before showing preview",
+        "Show error toast for invalid images",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Create Supabase Edge Function for AI image analysis",
+      "description": "As a developer, I need backend function to call OpenAI Vision API.",
+      "acceptanceCriteria": [
+        "Create Supabase Edge Function: analyze-image",
+        "Accept image URL in request body",
+        "Call OpenAI GPT-4o Vision API with prompt to detect items",
+        "Extract: item name(s), category suggestion, tags, brand (if visible)",
+        "Return JSON with detected items array and confidence scores",
+        "Handle API errors gracefully with appropriate error responses",
+        "Secure function with auth token validation",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Create AI analysis loading and results UI",
+      "description": "As a user, I want to see loading state and AI analysis results.",
+      "acceptanceCriteria": [
+        "After Continue clicked: show full-screen loading overlay",
+        "Loading UI: spinner + 'Analyzing your photo...' text",
+        "After 5 seconds: text changes to 'Still analyzing, please wait...'",
+        "After 15 seconds: show timeout with Cancel and Keep Waiting buttons",
+        "Upload image to storage, get URL, call analyze-image function",
+        "On success with single item: proceed to Item Editor with pre-filled data",
+        "On success with multiple items: show selection UI",
+        "On failure: show 'Couldn't identify items' with Add Manually option",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Create multiple items detection selection UI",
+      "description": "As a user, I want to select which detected items to add when multiple found.",
+      "acceptanceCriteria": [
+        "Create MultiItemSelection component",
+        "Display original photo at top",
+        "List detected items with: name, category, confidence badge (high/medium/low)",
+        "Each item has checkbox, default all checked",
+        "Add Selected Items button shows count",
+        "Clicking proceeds to Item Editor for first selected item",
+        "Queue remaining items for sequential editing",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 28,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Create Item Editor form - basic fields",
+      "description": "As a user, I want to edit item name, quantity, and description.",
+      "acceptanceCriteria": [
+        "Create /src/components/ItemEditor.tsx",
+        "Show item photo thumbnail at top (tappable for full view)",
+        "Name input: placeholder 'e.g., Blue Coffee Mug', max 200 chars",
+        "Quantity stepper: min 1, max 999, default 1",
+        "Description textarea: placeholder 'Add notes...', max 1000 chars",
+        "AI pre-filled fields show sparkle icon indicator",
+        "Sparkle disappears when user modifies field",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Create category selector with create new option",
+      "description": "As a user, I want to select or create a category for my item.",
+      "acceptanceCriteria": [
+        "Add Category dropdown to Item Editor",
+        "Dropdown shows: AI suggestion (with sparkle) first, then user categories, then system categories",
+        "Add 'Create new category' option at bottom",
+        "Create new: inline input appears, enter name, save creates category",
+        "Validate: category name required, max 50 chars",
+        "Auto-select newly created category",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Create location picker modal",
+      "description": "As a user, I want to select a storage location for my item.",
+      "acceptanceCriteria": [
+        "Add Location field to Item Editor that opens modal on tap",
+        "Create LocationPickerModal component",
+        "Modal header: 'Select Location' with close button",
+        "Show hierarchical tree of user locations with expand/collapse",
+        "Each location shows item count badge",
+        "Add 'No location assigned' option at top",
+        "Add 'Add New Location' button at bottom",
+        "Adding location: input field with optional parent selector",
+        "Selecting location: closes modal, shows full path in field",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 31,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Create tags input with autocomplete",
+      "description": "As a user, I want to add and manage tags for my item.",
+      "acceptanceCriteria": [
+        "Add Tags input to Item Editor",
+        "Show AI-suggested tags as removable chips",
+        "User can remove tags by clicking X",
+        "User can type to add tags, Enter or comma confirms",
+        "Autocomplete dropdown suggests from user's existing tags",
+        "Max 20 tags per item, max 50 chars per tag",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 32,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Create Item Editor - additional fields",
+      "description": "As a user, I want to add price, dates, brand, and model.",
+      "acceptanceCriteria": [
+        "Add to Item Editor: Price input (number with currency selector, default CNY)",
+        "Purchase Date picker: cannot be future date",
+        "Expiration Date picker: show warning if past date selected",
+        "Brand input: max 100 chars, AI may pre-fill",
+        "Model input: max 100 chars",
+        "Fields only shown if expanded or have values",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 33,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Implement save item functionality",
+      "description": "As a user, I want to save my item to the database.",
+      "acceptanceCriteria": [
+        "Add sticky Save Item button at bottom of Item Editor",
+        "Button shows loading spinner during save",
+        "Disabled during save to prevent double-submit",
+        "Create item record in database with all form data",
+        "On success: show success overlay with checkmark animation",
+        "Success actions: Add Another Item, View Item, Go to Inventory",
+        "Auto-dismiss after 5 seconds, navigate to /inventory",
+        "On error: show toast 'Failed to save item', re-enable button",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 34,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Implement multiple items queue save flow",
+      "description": "As a user, I want to save multiple detected items sequentially.",
+      "acceptanceCriteria": [
+        "When multiple items selected from detection, track queue state",
+        "Show progress indicator: 'Adding item 2 of 3'",
+        "After saving item: brief toast 'Item 1 saved', auto-proceed to next",
+        "After all saved: show summary '3 items added successfully!' with View Inventory button",
+        "User can cancel queue at any point",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 35,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Create Home Dashboard page structure",
+      "description": "As a user, I want to see a dashboard with greeting and search bar.",
+      "acceptanceCriteria": [
+        "Create /src/pages/DashboardPage.tsx at route /dashboard (also / redirects here when logged in)",
+        "Header: time-based greeting 'Good morning/afternoon/evening, {name}'",
+        "User avatar on right (initials fallback), tap -> /settings",
+        "Search bar below header: magnifying glass icon, placeholder 'Search items...'",
+        "Search bar sticky on scroll",
+        "Tap search bar navigates to /search",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 36,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "Create Dashboard quick stats cards",
+      "description": "As a user, I want to see quick statistics about my inventory.",
+      "acceptanceCriteria": [
+        "Add horizontal scrollable row of stat cards",
+        "Card 1: Total Items count with box icon, tap -> /inventory",
+        "Card 2: Locations count with pin icon, tap -> /inventory?view=locations",
+        "Card 3: Expiring count (within 30 days) with warning icon, tap -> /inventory?filter=expiring",
+        "Card styling: icon + label above + count below, rounded corners, subtle background",
+        "Fetch counts from database on page load",
+        "Show skeleton loaders while loading",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 37,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Create Dashboard Expiring Soon section",
+      "description": "As a user, I want to see items expiring within 7 days.",
+      "acceptanceCriteria": [
+        "Add 'Expiring Soon' section below stats",
+        "Header: warning icon + 'Expiring Soon' + 'See All' link -> /inventory?filter=expiring",
+        "Show up to 3 items expiring within 7 days, sorted by date",
+        "Each card: thumbnail, name, expiration date, days remaining badge",
+        "Badge colors: red (<=3 days), orange (4-7 days)",
+        "Hide entire section if 0 expiring items",
+        "Tap card -> /item/{id}",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 38,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Create Dashboard Recently Added section",
+      "description": "As a user, I want to see my recently added items.",
+      "acceptanceCriteria": [
+        "Add 'Recently Added' section below Expiring Soon",
+        "Header: clock icon + 'Recently Added' + 'See All' link -> /inventory?sort=newest",
+        "Show up to 5 most recent items, horizontal scroll",
+        "Each card: thumbnail (80x80), name (2 lines truncate), category badge, relative time",
+        "Relative time: 'Just now', '2 hours ago', 'Yesterday', '3 days ago'",
+        "Tap card -> /item/{id}",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 39,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Create Dashboard empty state for new users",
+      "description": "As a new user, I want clear guidance to add my first item.",
+      "acceptanceCriteria": [
+        "When user has 0 items, replace stats and sections with empty state",
+        "Centered content: illustration/box icon",
+        "Heading: 'Your inventory is empty'",
+        "Subtext: 'Take a photo of your first item to get started'",
+        "Primary button: 'Add Your First Item' -> /add",
+        "Search bar still visible above empty state",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 40,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Create Inventory page structure with header",
+      "description": "As a user, I want to browse all my items on the Inventory page.",
+      "acceptanceCriteria": [
+        "Create /src/pages/InventoryPage.tsx at route /inventory",
+        "Header: 'My Inventory' title, search icon on right -> /search",
+        "Subtitle: '{n} items' count (updates with filters)",
+        "FAB button: fixed bottom-right, + icon, tap -> /add",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 41,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "Create Inventory view toggle (Gallery/List)",
+      "description": "As a user, I want to switch between gallery and list views.",
+      "acceptanceCriteria": [
+        "Add view toggle in header: grid icon and list icon buttons",
+        "Active view highlighted/filled",
+        "Default: Gallery view",
+        "Save preference to user_settings.default_view",
+        "Load preference on page mount",
+        "Toggle updates view immediately without page reload",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 42,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-043",
+      "title": "Create Inventory Gallery view grid",
+      "description": "As a user, I want to see items in a responsive photo grid.",
+      "acceptanceCriteria": [
+        "Create ItemGrid component for gallery view",
+        "Responsive grid: 2 cols mobile (<640px), 3 cols tablet, 4+ cols desktop",
+        "Each cell: square thumbnail (aspect-ratio 1:1, object-fit cover)",
+        "Item name below thumbnail (max 2 lines, ellipsis)",
+        "Category color dot on thumbnail top-right",
+        "Expiring badge overlay if expiring within 7 days",
+        "Tap cell -> /item/{id}",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 43,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-044",
+      "title": "Create Inventory List view rows",
+      "description": "As a user, I want to see items in a detailed list format.",
+      "acceptanceCriteria": [
+        "Create ItemList component for list view",
+        "Full-width rows, 72px height",
+        "Each row: thumbnail (60x60) left, name (bold) + location path (gray) center, category badge + chevron right",
+        "Subtle divider between rows",
+        "Tap row -> /item/{id}",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 44,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-045",
+      "title": "Implement Inventory sorting functionality",
+      "description": "As a user, I want to sort my inventory by different criteria.",
+      "acceptanceCriteria": [
+        "Add Sort chip to filter bar: 'Sort: Newest'",
+        "Tap opens bottom sheet with options: Newest First, Oldest First, Name A-Z, Name Z-A, Expiring Soon, Recently Viewed",
+        "Current sort shows checkmark",
+        "Selecting option closes sheet, reloads with new sort",
+        "Sort persists in URL param: ?sort=newest|oldest|az|za|expiring|viewed",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 45,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-046",
+      "title": "Implement Inventory infinite scroll pagination",
+      "description": "As a user, I want items to load as I scroll.",
+      "acceptanceCriteria": [
+        "Initial load: 20 items",
+        "Trigger next load when within 200px of bottom",
+        "Show spinner at bottom while loading",
+        "Load 20 more items per batch",
+        "Show 'You've seen all {n} items' at end",
+        "Preserve scroll position when returning from item detail",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 46,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-047",
+      "title": "Create Inventory filter bar UI",
+      "description": "As a user, I want filter chips to filter my inventory.",
+      "acceptanceCriteria": [
+        "Add horizontal scrollable filter bar below header",
+        "Chips: [All Categories], [All Locations], [Sort: Newest]",
+        "Inactive chip: outlined border, gray text",
+        "Active chip: filled primary color, white text, shows selected value",
+        "Clear All link appears when any filter active",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 47,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-048",
+      "title": "Create Location filter bottom sheet",
+      "description": "As a user, I want to filter items by location.",
+      "acceptanceCriteria": [
+        "Tap Location chip opens bottom sheet",
+        "Header: 'Filter by Location' + close button",
+        "Search input at top for filtering long lists",
+        "All Locations option at top (clears filter)",
+        "Hierarchical tree with expand/collapse",
+        "Each location shows item count badge",
+        "Single-select: selecting location includes all children",
+        "Apply Filter button at bottom",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 48,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-049",
+      "title": "Create Category filter bottom sheet",
+      "description": "As a user, I want to filter items by category.",
+      "acceptanceCriteria": [
+        "Tap Category chip opens bottom sheet",
+        "Header: 'Filter by Category' + close button",
+        "All Categories checkbox at top",
+        "List of categories with multi-select checkboxes",
+        "System categories first (by sort_order), then user categories (alpha)",
+        "Each row: checkbox + icon + name + item count",
+        "Selected count indicator: '3 selected'",
+        "Apply Filter button at bottom",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 49,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-050",
+      "title": "Implement filter URL state and combined logic",
+      "description": "As a user, I want filters persisted in URL and combined correctly.",
+      "acceptanceCriteria": [
+        "URL format: /inventory?location={id}&categories={id1,id2}&sort={key}",
+        "On page load: read URL params, apply filters, load filtered data",
+        "Location AND Categories combine with AND logic",
+        "Clear All removes all filters, clears URL params",
+        "Filter changes update URL using replaceState (no history push)",
+        "Shared URL applies same filters for recipient",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 50,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-051",
+      "title": "Create Inventory empty states",
+      "description": "As a user, I want clear messaging when inventory is empty.",
+      "acceptanceCriteria": [
+        "No items (new user): illustration, 'No items yet', 'Start by adding your first item', Add First Item button",
+        "No items matching filters: filter icon with X, 'No items match your filters', Clear Filters button",
+        "Loading state: skeleton matching current view mode",
+        "Error state: 'Couldn't load your items', Try Again button",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 51,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-052",
+      "title": "Create Item Detail page - header and photo",
+      "description": "As a user, I want to view an item's photo and basic info.",
+      "acceptanceCriteria": [
+        "Create /src/pages/ItemDetailPage.tsx at route /item/{id}",
+        "Header: back arrow (history back), 'Item Details' title, overflow menu",
+        "Full-width hero image (max 300px height, preserve aspect ratio)",
+        "Tap photo opens full-screen viewer with pinch-to-zoom",
+        "Update last_viewed_at on page load (fire-and-forget)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 52,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-053",
+      "title": "Create Item Detail - expiration banner and primary info",
+      "description": "As a user, I want to see expiration status and key item info.",
+      "acceptanceCriteria": [
+        "Expiration banner below photo (if expiration_date exists)",
+        "Banner colors: red (expired or <=7 days), orange (8-30 days), hidden (>30 days)",
+        "Banner text: 'Expired X days ago' or 'Expires in X days'",
+        "Primary info section: large name, category badge (tappable), location path (tappable), tags row (horizontal scroll)",
+        "Tapping category -> /inventory?categories={id}",
+        "Tapping location -> /inventory?location={id}",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 53,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-054",
+      "title": "Create Item Detail - details section",
+      "description": "As a user, I want to see all item details in collapsible section.",
+      "acceptanceCriteria": [
+        "Details section with expand/collapse header (default expanded)",
+        "Only show fields with values (hide empty)",
+        "Fields: Description, Quantity (if >1), Brand, Model, Price (formatted with currency), Purchase Date, Expiration Date, Notes",
+        "Date formatting: 'Jan 15, 2024'",
+        "Smooth collapse animation (200ms)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 54,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-055",
+      "title": "Create Item Detail - metadata and action buttons",
+      "description": "As a user, I want to see timestamps and edit/delete actions.",
+      "acceptanceCriteria": [
+        "Metadata section: gray background, smaller text",
+        "Show: 'Added {date} at {time}', 'Modified {date}' (if different), 'Last viewed {relative}'",
+        "Sticky bottom action bar with Edit Item and Delete buttons",
+        "Edit button (primary) -> /item/{id}/edit",
+        "Delete button (red outline) -> triggers delete confirmation",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 55,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-056",
+      "title": "Create Item Detail - overflow menu actions",
+      "description": "As a user, I want additional actions in the overflow menu.",
+      "acceptanceCriteria": [
+        "Overflow menu (three dots) in header",
+        "Options: Share, Add to Favorites / Remove from Favorites, Mark as Keep Forever / Unmark",
+        "Share: use Web Share API, fallback to copy URL",
+        "Favorites: toggle is_favorite, show heart icon state change",
+        "Keep Forever: toggle keep_forever, show toast explaining effect",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 56,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-057",
+      "title": "Create Edit Item page",
+      "description": "As a user, I want to edit my item's details.",
+      "acceptanceCriteria": [
+        "Create route /item/{id}/edit",
+        "Page title: 'Edit Item'",
+        "Reuse ItemEditor component with existing data pre-filled",
+        "Photo shown but not editable (read-only)",
+        "Bottom buttons: Cancel (text), Save Changes (primary)",
+        "Save success: return to /item/{id}, toast 'Item updated successfully'",
+        "Cancel: return to /item/{id} without saving",
+        "Unsaved changes: show 'Discard?' dialog on navigation",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 57,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-058",
+      "title": "Implement delete item with soft delete and undo",
+      "description": "As a user, I want to delete items with undo option.",
+      "acceptanceCriteria": [
+        "Delete button triggers confirmation dialog",
+        "Dialog: thumbnail, 'Delete this item?', item name, 'Permanently deleted after 30 days'",
+        "Cancel dismisses, Delete executes soft delete (set deleted_at)",
+        "On success: navigate back, show undo toast",
+        "Toast: 'Item deleted' + Undo button, 5-second countdown",
+        "Undo: clear deleted_at, navigate to /item/{id}, toast 'Item restored'",
+        "Auto-dismiss toast after 5 seconds",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 58,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-059",
+      "title": "Create Search page structure and input",
+      "description": "As a user, I want a dedicated search page with auto-focus input.",
+      "acceptanceCriteria": [
+        "Create /src/pages/SearchPage.tsx at route /search",
+        "Sticky search input bar at top",
+        "Back arrow on left, auto-focused text input, clear button when has text",
+        "Microphone icon on right (if Speech API supported)",
+        "Placeholder: 'Search items, tags, locations...'",
+        "Query preserved in URL: ?q={encoded_query}",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 59,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-060",
+      "title": "Implement text search with debounce and highlighting",
+      "description": "As a user, I want real-time search with highlighted matches.",
+      "acceptanceCriteria": [
+        "Search triggers on input change, debounced 300ms",
+        "Search across: name, description, tags, category.name, location.path, brand",
+        "Min 1 character to trigger search",
+        "Results header: '{n} results for \"{query}\"'",
+        "Each result: thumbnail, name with highlighted match, location path, category badge",
+        "Highlight matching text with yellow background (mark element)",
+        "Tap result -> /item/{id}",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 60,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-061",
+      "title": "Create recent searches functionality",
+      "description": "As a user, I want to see and use my recent searches.",
+      "acceptanceCriteria": [
+        "When input empty, show 'Recent Searches' section",
+        "Header: 'Recent Searches' + 'Clear All' link",
+        "List last 10 unique queries from localStorage (key: ownly_recent_searches)",
+        "Tap query populates input and executes search",
+        "Swipe left reveals Delete button (mobile), hover shows X (desktop)",
+        "Clear All shows confirmation, clears all",
+        "Save to recent when: query >=2 chars AND results >=1",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 61,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-062",
+      "title": "Implement voice search with Web Speech API",
+      "description": "As a user, I want to search by voice.",
+      "acceptanceCriteria": [
+        "Microphone icon visible only if SpeechRecognition API available",
+        "Tap mic: request permission if needed",
+        "Permission denied: toast 'Microphone access required'",
+        "Listening state: pulsing red dot, full-screen overlay 'Listening...'",
+        "Real-time transcription appears in input",
+        "Speech end auto-detected, execute search",
+        "Tap overlay cancels listening",
+        "No speech after 5s: cancel, toast 'Didn't catch that'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 62,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-063",
+      "title": "Create search empty and loading states",
+      "description": "As a user, I want clear feedback during search.",
+      "acceptanceCriteria": [
+        "Loading: skeleton list (5 rows) during API call",
+        "No results: magnifying glass icon with X, 'No items found', 'Try different keywords'",
+        "New keystroke during loading aborts previous request",
+        "Error: 'Search failed' message with Retry button",
+        "Empty recent searches: 'Your recent searches will appear here'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 63,
+      "passes": true,
+      "notes": "Functionality was implemented as part of US-059 to US-062 search feature implementation"
+    },
+    {
+      "id": "US-064",
+      "title": "Create Settings page - reminder settings section",
+      "description": "As a user, I want to configure my reminder preferences.",
+      "acceptanceCriteria": [
+        "Add 'Reminders & Notifications' section to Settings page",
+        "Master toggle: 'Enable Reminders' (reminder_enabled)",
+        "When enabled, show sub-options indented:",
+        "Unused Item Reminder dropdown: 30/60/90/180/365 days",
+        "Expiration Reminder dropdown: 3/7/14/30 days",
+        "Push Notifications toggle (push_notifications_enabled)",
+        "Save changes to user_settings on toggle/select",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 64,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-065",
+      "title": "Implement push notification permission flow",
+      "description": "As a user, I want to enable push notifications.",
+      "acceptanceCriteria": [
+        "Tapping Push toggle when OFF triggers browser permission request",
+        "Permission denied: show 'Notifications blocked' message with How to Enable link",
+        "Permission granted: toggle ON, toast 'Push notifications enabled'",
+        "Register service worker push subscription on grant",
+        "Store subscription endpoint in database (future: notifications table or separate)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 65,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-066",
+      "title": "Create in-app notification center UI",
+      "description": "As a user, I want to view my notifications in-app.",
+      "acceptanceCriteria": [
+        "Add bell icon to Dashboard and Inventory headers",
+        "Bell shows red badge with unread count (or 9+ if >9)",
+        "Tap bell navigates to /notifications",
+        "Create /src/pages/NotificationsPage.tsx",
+        "Header: 'Notifications', 'Mark All Read' link (if unread exist)",
+        "List notifications: type icon, title (bold if unread), body preview, relative time",
+        "Unread: subtle background highlight, blue dot indicator",
+        "Tap notification: mark read, navigate to /item/{id}",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 66,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-067",
+      "title": "Create Supabase scheduled function for reminder generation",
+      "description": "As a developer, I need background job to generate reminder notifications.",
+      "acceptanceCriteria": [
+        "Create Supabase Edge Function or pg_cron job for daily reminders",
+        "Run daily at 9 AM (configurable)",
+        "For users with reminder_enabled=true:",
+        "Find unused items: last_viewed_at < (now - threshold) AND keep_forever=false AND deleted_at IS NULL",
+        "Find expiring items: expiration_date BETWEEN now AND (now + days)",
+        "Create Notification records (prevents duplicates)",
+        "If push enabled: queue push notification (implementation in separate story)",
+        "Typecheck passes"
+      ],
+      "priority": 67,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-068",
+      "title": "Create PWA manifest and icons",
+      "description": "As a user, I want to install the app on my device.",
+      "acceptanceCriteria": [
+        "Create /public/manifest.json with: name, short_name, description, start_url, display=standalone, theme_color, background_color",
+        "Create app icons: 192x192, 512x512, and maskable versions",
+        "Add link to manifest in index.html",
+        "Verify manifest in Chrome DevTools Application tab",
+        "Typecheck passes"
+      ],
+      "priority": 68,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-069",
+      "title": "Create service worker for caching",
+      "description": "As a user, I want the app to load fast with caching.",
+      "acceptanceCriteria": [
+        "Create service worker using Workbox (vite-plugin-pwa)",
+        "Cache app shell (HTML, CSS, JS) on install, serve cache-first",
+        "Cache API responses network-first with cache fallback",
+        "Cache images and static assets cache-first",
+        "Include version in cache name for updates",
+        "Register SW on app load",
+        "Typecheck passes"
+      ],
+      "priority": 69,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-070",
+      "title": "Create install prompt for Android/Chrome",
+      "description": "As a user, I want to be prompted to install the PWA.",
+      "acceptanceCriteria": [
+        "Capture beforeinstallprompt event, defer native prompt",
+        "Show custom banner when: event captured, viewed >=2 pages, spent >=30s, not dismissed in 7 days, not already installed",
+        "Banner: app icon, 'Add Ownly to Home Screen', subtext, Not Now and Install buttons",
+        "Install button triggers event.prompt()",
+        "Not Now hides banner, stores dismiss timestamp",
+        "After install: hide all install UI, toast 'App installed!'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 70,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-071",
+      "title": "Create install instructions for iOS Safari",
+      "description": "As an iOS user, I want instructions to install the PWA.",
+      "acceptanceCriteria": [
+        "Detect iOS Safari via user agent",
+        "Show instructional banner (same trigger conditions as Android)",
+        "Banner: 'Install this app: tap Share icon then Add to Home Screen'",
+        "Got It button dismisses, stores flag in localStorage",
+        "Don't show again for 30 days after dismiss",
+        "Hide in standalone mode",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 71,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-072",
+      "title": "Create offline status detection and UI",
+      "description": "As a user, I want to know when I'm offline.",
+      "acceptanceCriteria": [
+        "Listen to online/offline events on window",
+        "Check navigator.onLine on page load",
+        "When offline: show persistent banner 'You're offline' at top",
+        "Cached content remains viewable",
+        "Actions requiring network: toast 'This requires an internet connection'",
+        "When back online: hide banner",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 72,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-073",
+      "title": "Create Shopping Assistant page - initial state",
+      "description": "As a user, I want to access the AI shopping assistant.",
+      "acceptanceCriteria": [
+        "Add 'Shop' tab to bottom nav (4th tab, cart icon)",
+        "Create /src/pages/ShoppingPage.tsx at route /shopping",
+        "Initial state: shopping bag icon, 'Smart Shopping Assistant' heading",
+        "Subtext: 'Take a photo of something you're thinking of buying...'",
+        "Take Photo and Choose from Gallery buttons",
+        "Recent section showing last 3 shopping queries (if any)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 73,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-074",
+      "title": "Create Shopping Assistant chat interface",
+      "description": "As a user, I want a chat-like interface for shopping assistance.",
+      "acceptanceCriteria": [
+        "After photo captured, transition to chat interface",
+        "Scrollable message area (main content)",
+        "Sticky bottom bar: text input, camera button, send button",
+        "User messages: right-aligned, blue background, white text",
+        "Assistant messages: left-aligned, gray background, dark text",
+        "Photo messages: image thumbnail inside bubble",
+        "Timestamps below message groups",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 74,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-075",
+      "title": "Create Supabase Edge Function for shopping analysis",
+      "description": "As a developer, I need backend to analyze shopping photos against inventory.",
+      "acceptanceCriteria": [
+        "Create Edge Function: shopping-analyze",
+        "Accept image URL in request",
+        "Call OpenAI Vision to identify the item",
+        "Generate embedding for the item",
+        "Query user's items for similarity (cosine similarity >0.6)",
+        "Return: detected item info, similar items array with match percentages",
+        "Handle rate limiting (track daily usage)",
+        "Typecheck passes"
+      ],
+      "priority": 75,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-076",
+      "title": "Implement Shopping Assistant AI response display",
+      "description": "As a user, I want to see AI analysis of my shopping photo.",
+      "acceptanceCriteria": [
+        "User photo appears as user bubble",
+        "Show typing indicator (three dots) during analysis",
+        "Assistant response shows: 'Analyzing your photo...' header",
+        "'What I found' section with similar items (thumbnail, name, match %, location)",
+        "'My take' summary with advice",
+        "Similarity badge colors: green (>90%), yellow (70-90%), gray (60-70%)",
+        "Tap similar item opens /item/{id} in modal",
+        "If no similar items: 'No similar items found' message",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 76,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-077",
+      "title": "Implement Shopping Assistant follow-up questions",
+      "description": "As a user, I want to ask follow-up questions in the chat.",
+      "acceptanceCriteria": [
+        "Text input placeholder: 'Ask a follow-up...'",
+        "Send button submits question as user bubble",
+        "Show typing indicator, AI responds with relevant info",
+        "Camera button allows adding another photo to conversation",
+        "New photo triggers new analysis with conversation context",
+        "Chat history maintained during session (not persisted)",
+        "New Chat button clears conversation",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 77,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-078",
+      "title": "Implement Shopping Assistant usage limits",
+      "description": "As a system, I need to enforce daily usage limits for cost management.",
+      "acceptanceCriteria": [
+        "Track daily API usage per user in database or Edge Function state",
+        "Photo analysis limit: 20 per day",
+        "Text question limit: 50 per day",
+        "At 15 photo uses: show warning '5 analyses remaining today'",
+        "At limit: show 'You've reached today's limit. Try again tomorrow!'",
+        "Limits reset at midnight UTC",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 78,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-079",
+      "title": "Create Supabase scheduled function for permanent deletion",
+      "description": "As a developer, I need background job to permanently delete old soft-deleted items.",
+      "acceptanceCriteria": [
+        "Create scheduled job (pg_cron or Edge Function) running daily",
+        "Find items where deleted_at < NOW() - INTERVAL '30 days'",
+        "Hard delete: remove item record from database",
+        "Delete associated files from Supabase Storage (photo, thumbnail)",
+        "Log deletions for audit (optional)",
+        "No user notification for permanent deletion",
+        "Typecheck passes"
+      ],
+      "priority": 79,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-080",
+      "title": "Create Supabase Edge Function for embedding generation",
+      "description": "As a developer, I need to generate embeddings for item similarity.",
+      "acceptanceCriteria": [
+        "Create Edge Function: generate-embedding",
+        "Accept item ID or text description",
+        "Call OpenAI Embeddings API (text-embedding-3-small, 1536 dimensions)",
+        "Update item.embedding field in database",
+        "Can be called async after item creation (non-blocking)",
+        "Handle API errors gracefully",
+        "Typecheck passes"
+      ],
+      "priority": 80,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-081",
+      "title": "Add pull-to-refresh on Dashboard and Inventory",
+      "description": "As a user, I want to refresh data by pulling down.",
+      "acceptanceCriteria": [
+        "Add pull-to-refresh gesture to Dashboard page",
+        "Add pull-to-refresh gesture to Inventory page",
+        "Show refresh spinner at top during reload",
+        "All data reloads on refresh",
+        "Success: data updates silently",
+        "Failure: toast 'Refresh failed'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 81,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-082",
+      "title": "Create loading skeletons for all main pages",
+      "description": "As a user, I want to see loading placeholders while data loads.",
+      "acceptanceCriteria": [
+        "Create reusable Skeleton components (line, card, grid, list)",
+        "Dashboard: stat cards skeleton, section skeletons",
+        "Inventory: grid or list skeleton matching view mode",
+        "Item Detail: photo placeholder, text line skeletons",
+        "Search: result row skeletons",
+        "Skeletons use pulse animation",
+        "Load time target: <1 second to real content",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 82,
+      "passes": true,
+      "notes": "Created reusable Skeleton component library with all building blocks and page-specific skeletons"
+    },
+    {
+      "id": "US-083",
+      "title": "Create toast notification system",
+      "description": "As a developer, I need a reusable toast notification component.",
+      "acceptanceCriteria": [
+        "Create /src/components/Toast.tsx and ToastProvider context",
+        "Support types: success (green), error (red), info (blue), warning (yellow)",
+        "Toast appears at bottom, auto-dismisses after 3s (configurable)",
+        "Can include action button (e.g., Undo)",
+        "Multiple toasts stack",
+        "Expose useToast hook for easy usage",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 83,
+      "passes": true,
+      "notes": "Created complete toast notification system with ToastContext, ToastProvider, useToast hook, and updated Toast component with stacking support"
+    },
+    {
+      "id": "US-084",
+      "title": "Create confirmation dialog component",
+      "description": "As a developer, I need a reusable confirmation dialog.",
+      "acceptanceCriteria": [
+        "Create /src/components/ConfirmDialog.tsx",
+        "Props: title, message, confirmText, cancelText, onConfirm, onCancel, variant (danger/default)",
+        "Modal with backdrop overlay, centered card",
+        "Danger variant: red confirm button",
+        "Tap backdrop or Cancel dismisses",
+        "Expose useConfirm hook for easy usage",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 84,
+      "passes": true,
+      "notes": "Created complete confirmation dialog system with ConfirmDialog, ConfirmContext, ConfirmProvider, and useConfirm hook"
+    },
+    {
+      "id": "US-085",
+      "title": "Create bottom sheet component",
+      "description": "As a developer, I need a reusable bottom sheet for filters and pickers.",
+      "acceptanceCriteria": [
+        "Create /src/components/BottomSheet.tsx",
+        "Props: isOpen, onClose, title, children",
+        "Slides up from bottom with animation",
+        "Backdrop overlay, tap to close",
+        "Header with title and close button",
+        "Scrollable content area",
+        "Optional footer for action buttons",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 85,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-086",
+      "title": "Implement Item Detail loading and error states",
+      "description": "As a user, I want clear feedback when viewing item details.",
+      "acceptanceCriteria": [
+        "Loading: show skeleton with photo placeholder, text lines",
+        "404 (item deleted): 'This item no longer exists' + Back to Inventory button",
+        "Network error: 'Couldn't load item details' + Try Again button",
+        "Permission error (other user's item): redirect to /inventory with toast",
+        "Load time target: <500ms",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 86,
+      "passes": true,
+      "notes": "Functionality already implemented in ItemDetailPage.tsx - includes ItemDetailSkeleton component, error states for 404, permission errors, and network failures with appropriate retry options."
+    },
+    {
+      "id": "US-087",
+      "title": "Add Settings page - view preferences section",
+      "description": "As a user, I want to configure my default view preference.",
+      "acceptanceCriteria": [
+        "Add 'Display' section to Settings page",
+        "Default View toggle: Gallery / List",
+        "Save to user_settings.default_view on change",
+        "Changes apply immediately on Inventory page",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 87,
+      "passes": true,
+      "notes": "Implemented Display section with Gallery/List toggle button group between Reminders & Notifications and Account sections. Uses updateSettings hook same as other user settings."
+    },
+    {
+      "id": "US-088",
+      "title": "Add Settings page - account section",
+      "description": "As a user, I want to see my account info and manage it.",
+      "acceptanceCriteria": [
+        "Add 'Account' section at top of Settings page",
+        "Show user avatar (or initials), display name, email",
+        "Edit Profile button -> allows changing display_name",
+        "Change Password link -> /reset-password flow",
+        "Account section above other settings sections",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 88,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-089",
+      "title": "Create app router with all routes",
+      "description": "As a developer, I need complete routing configuration.",
+      "acceptanceCriteria": [
+        "Configure React Router with all routes",
+        "Public routes: /login, /signup, /reset-password, /reset-password/confirm",
+        "Protected routes: /dashboard (also /), /add, /inventory, /item/:id, /item/:id/edit, /search, /settings, /notifications, /shopping",
+        "Wrap protected routes with ProtectedRoute component",
+        "404 page for unknown routes",
+        "Redirect / to /dashboard when authenticated",
+        "Typecheck passes"
+      ],
+      "priority": 89,
+      "passes": true,
+      "notes": "Completed with NotFoundPage component and comprehensive route configuration. All routes properly organized with ProtectedRoute wrapper."
+    },
+    {
+      "id": "US-090",
+      "title": "Add app update detection and prompt",
+      "description": "As a user, I want to know when app updates are available.",
+      "acceptanceCriteria": [
+        "Check for service worker updates on page focus",
+        "When update available: show toast 'App update available' with Refresh button",
+        "Refresh button triggers SW update and page reload",
+        "Don't interrupt user mid-action",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 90,
+      "passes": true,
+      "notes": "Implemented ServiceWorkerUpdateDetector component that listens for pwa-update-available events and shows persistent toast with Refresh action. Integration with vite-plugin-pwa update detection."
+    }
+  ]
+}

@@ -1,0 +1,329 @@
+{
+  "project": "Ownly Marketplace",
+  "branchName": "feature/marketplace",
+  "description": "Community marketplace where users can list their inventory items for sale/share and purchase from others",
+  "createdAt": "2026-01-31",
+  "estimatedHours": 19,
+  "userStories": [
+    {
+      "id": "US-MKT-001",
+      "title": "Marketplace Database Schema",
+      "description": "As a developer, I need the database schema for marketplace functionality including listings, transactions, and messages tables.",
+      "acceptanceCriteria": [
+        "Create listings table with: id, item_id (FK), seller_id (FK), status (active/sold/reserved/removed), price, price_type (fixed/negotiable/free), condition (new/like_new/good/fair/poor), description, created_at, updated_at",
+        "Create transactions table with: id, listing_id (FK), buyer_id (FK), seller_id (FK), status (pending/accepted/completed/cancelled), agreed_price, message, created_at, updated_at",
+        "Create messages table with: id, listing_id (FK), sender_id (FK), receiver_id (FK), content, read_at, created_at",
+        "Add RLS policies: users can only see their own transactions, sellers can see their listing transactions",
+        "Add RLS policies: messages visible only to sender/receiver",
+        "Create indexes on: listings(seller_id, status), transactions(buyer_id, seller_id), messages(listing_id, sender_id, receiver_id)",
+        "Migration runs successfully",
+        "TypeScript types generated in database.ts"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Foundation - must complete first"
+    },
+    {
+      "id": "US-MKT-002",
+      "title": "Seller Profile Extension",
+      "description": "As a user, I want to have a public profile so buyers can see my information and trustworthiness.",
+      "acceptanceCriteria": [
+        "Add to profiles table: display_name (varchar 100), bio (text), avatar_url (text), location_city (varchar 100)",
+        "Add to profiles table: seller_rating (decimal 2,1), review_count (integer default 0), is_verified (boolean default false)",
+        "Add to profiles table: joined_at (timestamp), last_active_at (timestamp)",
+        "Create RLS policy: display_name, avatar_url, location_city, seller_rating, review_count are publicly readable",
+        "Create RLS policy: users can only update their own profile",
+        "Migration runs successfully",
+        "Update TypeScript types in database.ts"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Depends on US-MKT-001"
+    },
+    {
+      "id": "US-MKT-003",
+      "title": "List Item for Sale UI",
+      "description": "As a user, I want to list my inventory items for sale so others in the community can purchase them.",
+      "acceptanceCriteria": [
+        "Add 'Sell / Share' button on ItemDetailPage (only for item owner)",
+        "Button opens ListingFormModal with fields: price (number), price_type (radio: Fixed/Negotiable/Free), condition (dropdown), description (textarea 500 chars)",
+        "When price_type is 'Free', hide price input",
+        "Form validation: price required if not free, condition required, description optional",
+        "Submit creates new listing in database with status='active'",
+        "On success: show toast 'Item listed!', close modal",
+        "On error: show error toast, keep modal open",
+        "Item card in Inventory shows 'Listed' badge when has active listing",
+        "Cannot list item that is already listed (show 'Already Listed' disabled button)",
+        "npm run build passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Depends on US-MKT-001"
+    },
+    {
+      "id": "US-MKT-004",
+      "title": "My Listings Management Page",
+      "description": "As a seller, I want to manage my listings so I can update prices, mark items as sold, or remove listings.",
+      "acceptanceCriteria": [
+        "Create new page /my-listings accessible from Settings or bottom nav",
+        "Display all user's listings in a list/grid view",
+        "Each listing card shows: item photo, name, price, status, view count, message count, created date",
+        "Status tabs/filter: All, Active, Sold, Removed",
+        "Tap listing opens edit modal with: price, price_type, condition, description",
+        "Edit modal has actions: Save Changes, Mark as Sold, Remove Listing",
+        "Mark as Sold: sets status='sold', removes from marketplace",
+        "Remove Listing: sets status='removed', removes from marketplace",
+        "Empty state: 'No listings yet. List your first item!'",
+        "Link to item detail page from each listing",
+        "npm run build passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Depends on US-MKT-003"
+    },
+    {
+      "id": "US-MKT-005",
+      "title": "Marketplace Browse Page",
+      "description": "As a buyer, I want to browse items listed by the community so I can find things I want to purchase.",
+      "acceptanceCriteria": [
+        "Create new page /marketplace accessible from bottom nav (new icon)",
+        "Display active listings in responsive grid (2 cols mobile, 3-4 cols desktop)",
+        "Each listing card shows: photo, item name, price (or 'Free'), condition badge, seller name, location city",
+        "Filter button opens FilterBottomSheet with: category (multi-select), price range (min-max), condition (multi-select), price type (all/free only)",
+        "Sort dropdown: Newest, Price Low-High, Price High-Low",
+        "Search bar at top for text search in listing name/description",
+        "Pull-to-refresh updates listings",
+        "Infinite scroll pagination (20 items per page)",
+        "Empty state: 'No listings found' with clear filters button",
+        "Exclude user's own listings from browse",
+        "npm run build passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Core buyer experience"
+    },
+    {
+      "id": "US-MKT-006",
+      "title": "Listing Detail Page",
+      "description": "As a buyer, I want to see full details of a listing so I can decide whether to purchase.",
+      "acceptanceCriteria": [
+        "Create new page /marketplace/:listingId",
+        "Hero section: large item photo (tap to fullscreen)",
+        "Info section: item name, price, condition, description",
+        "Seller section: avatar, display_name, rating stars, review count, location city, member since",
+        "Tap seller name goes to seller profile page",
+        "Action buttons (sticky bottom): 'Message Seller' (outline), 'Buy Now' or 'Request Item' for free items (primary)",
+        "If item is user's own listing: show 'This is your listing' with Edit button",
+        "If listing is sold/removed: show 'This item is no longer available'",
+        "Back button in header",
+        "Share button to copy link",
+        "npm run build passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Depends on US-MKT-005"
+    },
+    {
+      "id": "US-MKT-007",
+      "title": "Purchase Request Flow",
+      "description": "As a buyer, I want to request to purchase an item so the seller can accept and we can complete the transaction.",
+      "acceptanceCriteria": [
+        "Tap 'Buy Now' opens PurchaseRequestModal",
+        "Modal shows: item summary, price, optional message to seller (textarea)",
+        "For negotiable items: show 'Your Offer' input field",
+        "Submit creates transaction with status='pending'",
+        "Seller receives push notification: '{buyer} wants to buy your {item}'",
+        "Seller sees pending requests in My Listings with Accept/Decline buttons",
+        "Accept: transaction status='accepted', listing status='reserved', buyer notified",
+        "Decline: transaction status='cancelled', buyer notified with optional reason",
+        "After accept: both parties see each other's contact info or can message",
+        "Complete Transaction button for seller after handoff (status='completed', listing status='sold')",
+        "npm run build passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Depends on US-MKT-006"
+    },
+    {
+      "id": "US-MKT-008",
+      "title": "In-App Messaging",
+      "description": "As a buyer/seller, I want to message the other party so we can discuss details and arrange pickup.",
+      "acceptanceCriteria": [
+        "Create new page /messages listing all conversations",
+        "Conversation list shows: other party avatar/name, last message preview, unread count, timestamp",
+        "Tap conversation opens /messages/:conversationId chat view",
+        "Chat view: message bubbles (sent right, received left), timestamps, listing reference at top",
+        "Message input at bottom with send button",
+        "Real-time updates using Supabase Realtime subscription",
+        "Mark messages as read when conversation opened",
+        "Unread badge on Messages nav icon",
+        "'Message Seller' button on listing detail creates/opens conversation",
+        "Empty state: 'No messages yet'",
+        "npm run build passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Essential for transaction coordination"
+    },
+    {
+      "id": "US-MKT-009",
+      "title": "Marketplace Notifications",
+      "description": "As a user, I want to receive notifications about my marketplace activity so I don't miss important updates.",
+      "acceptanceCriteria": [
+        "New notification types: 'new_inquiry', 'purchase_request', 'request_accepted', 'request_declined', 'new_message', 'transaction_complete'",
+        "Push notifications for all marketplace events (if enabled)",
+        "In-app notifications in existing notification center",
+        "Notification content includes: event type, other party name, item name, action link",
+        "Tap notification navigates to relevant page (listing, messages, transaction)",
+        "Notification preferences in Settings: toggle for each marketplace notification type",
+        "npm run build passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Depends on US-MKT-007, US-MKT-008"
+    },
+    {
+      "id": "US-MKT-010",
+      "title": "User Ratings and Reviews",
+      "description": "As a user, I want to rate and review other users after transactions so the community can identify trustworthy members.",
+      "acceptanceCriteria": [
+        "Create reviews table: id, transaction_id (FK), reviewer_id (FK), reviewee_id (FK), rating (1-5), comment (text 500), created_at",
+        "After transaction complete, both parties can leave review (prompt appears)",
+        "Review modal: star rating (required), comment (optional)",
+        "One review per user per transaction (cannot edit after submit)",
+        "User profile shows: average rating, review count, recent reviews",
+        "Seller profile on listing detail shows rating prominently",
+        "Reviews visible on /profile/:userId page",
+        "Calculate and update seller_rating in profiles table (trigger or on-write)",
+        "npm run build passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Trust system - important for community"
+    },
+    {
+      "id": "US-MKT-011",
+      "title": "Saved Listings / Wishlist",
+      "description": "As a buyer, I want to save listings I'm interested in so I can find them later.",
+      "acceptanceCriteria": [
+        "Create saved_listings table: user_id, listing_id, created_at (composite PK)",
+        "Heart/bookmark icon on listing cards and detail page",
+        "Tap to save/unsave (optimistic UI update)",
+        "New page /saved-listings showing all saved items",
+        "Remove from saved when listing is sold/removed (or show 'No longer available' state)",
+        "Empty state: 'No saved items yet'",
+        "npm run build passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Nice to have"
+    },
+    {
+      "id": "US-MKT-012",
+      "title": "Marketplace Search with Semantic",
+      "description": "As a buyer, I want to search the marketplace with natural language so I can find what I need easily.",
+      "acceptanceCriteria": [
+        "Search bar on marketplace page",
+        "Debounced search (300ms)",
+        "Text search in listing name, description, item name, item tags",
+        "Option to use semantic search (embedding similarity) for better results",
+        "Search results replace browse grid",
+        "Clear search button returns to browse mode",
+        "Recent searches saved locally",
+        "Search suggestions based on popular/recent",
+        "npm run build passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Enhanced discovery"
+    },
+    {
+      "id": "US-MKT-013",
+      "title": "Seller Public Profile Page",
+      "description": "As a buyer, I want to view a seller's profile so I can see their reputation and other listings.",
+      "acceptanceCriteria": [
+        "Create page /seller/:userId",
+        "Header: avatar, display_name, location, member since, rating stars",
+        "Stats: total listings, items sold, response rate",
+        "Tabs: Active Listings, Reviews",
+        "Active Listings tab shows seller's current listings (grid)",
+        "Reviews tab shows reviews received (list)",
+        "'Message' button to start conversation",
+        "Verified badge if is_verified=true",
+        "npm run build passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Trust and discovery"
+    },
+    {
+      "id": "US-MKT-014",
+      "title": "Bottom Navigation Update",
+      "description": "As a user, I want easy access to marketplace from the main navigation.",
+      "acceptanceCriteria": [
+        "Add Marketplace icon to bottom nav (between Inventory and Settings)",
+        "Icon: shopping bag or storefront",
+        "Badge showing number of unread messages/pending requests",
+        "Active state styling consistent with other nav items",
+        "Update nav layout for 5 items (may need to adjust spacing)",
+        "npm run build passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Navigation update"
+    }
+  ],
+  "phases": [
+    {
+      "name": "Phase 1: Foundation",
+      "stories": ["US-MKT-001", "US-MKT-002"],
+      "estimatedHours": 3,
+      "description": "Database schema and profile extensions"
+    },
+    {
+      "name": "Phase 2: Seller Features",
+      "stories": ["US-MKT-003", "US-MKT-004", "US-MKT-014"],
+      "estimatedHours": 5,
+      "description": "List items and manage listings"
+    },
+    {
+      "name": "Phase 3: Buyer Features",
+      "stories": ["US-MKT-005", "US-MKT-006", "US-MKT-007"],
+      "estimatedHours": 6,
+      "description": "Browse, view, and purchase"
+    },
+    {
+      "name": "Phase 4: Communication",
+      "stories": ["US-MKT-008", "US-MKT-009"],
+      "estimatedHours": 4,
+      "description": "Messaging and notifications"
+    },
+    {
+      "name": "Phase 5: Trust & Discovery",
+      "stories": ["US-MKT-010", "US-MKT-013"],
+      "estimatedHours": 3,
+      "description": "Ratings, reviews, seller profiles"
+    },
+    {
+      "name": "Phase 6: Enhancements",
+      "stories": ["US-MKT-011", "US-MKT-012"],
+      "estimatedHours": 3,
+      "description": "Wishlist and semantic search"
+    }
+  ],
+  "technicalNotes": {
+    "database": "Supabase PostgreSQL with RLS",
+    "realtime": "Supabase Realtime for messaging",
+    "storage": "Existing Supabase Storage for images",
+    "notifications": "Existing push notification infrastructure",
+    "search": "pgvector for semantic search (optional)"
+  },
+  "outOfScope": [
+    "Payment processing (Stripe integration)",
+    "Shipping/delivery tracking",
+    "Escrow system",
+    "Dispute resolution",
+    "Admin moderation panel",
+    "Location-based filtering by distance"
+  ]
+}

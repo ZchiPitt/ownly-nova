@@ -1,0 +1,303 @@
+## 2026-01-30 22:32 PST - US-FIX-005
+- Implemented source_batch_id tracking for multi-item captures and shared-photo UI in gallery + item detail views.
+- Files changed: supabase/migrations/20260131000001_add_source_batch_id.sql, src/types/database.ts, src/pages/AddItemPage.tsx, src/pages/ItemEditorPage.tsx, src/hooks/useInventoryItems.ts, src/components/GalleryGrid.tsx, src/pages/ItemDetailPage.tsx
+- **Learnings for future iterations:**
+  - Use source_batch_id to group multi-item captures; shared-photo counts are derived by counting items with the same batch ID and subtracting 1 for the current item.
+  - Item detail related items query should filter by user_id and deleted_at is null, excluding the current item.
+---
+## 2026-01-31 09:45 PST - US-FIX-008
+- Added color tag utilities and TagChip component to render color dots/tinted chips across tags input, item detail, gallery, and search results.
+- Updated inventory item query/types to include tags for gallery tag previews.
+- Files changed: src/lib/colorUtils.ts, src/components/TagChip.tsx, src/components/TagsInput.tsx, src/components/GalleryGrid.tsx, src/components/SearchResult.tsx, src/pages/ItemDetailPage.tsx, src/hooks/useInventoryItems.ts
+---
+## 2026-01-31 10:15 PST - US-FIX-006
+- Added AI bbox parsing on analyze-image edge function and defaulted invalid/missing bboxes to full image.
+- Implemented bbox validation + crop-to-bbox thumbnail generation (200x200) with fallback to full image and storage uploads.
+- Wired per-item thumbnails through add flow (multi-item, quick add, editor queue) with cleanup on cancel.
+- Files changed: supabase/functions/analyze-image/index.ts, src/types/api.ts, src/lib/imageUtils.ts, src/pages/AddItemPage.tsx, src/pages/ItemEditorPage.tsx
+---
+## 2026-01-30 23:50 PST - US-FIX-006
+- Verified production build (`npm run build`).
+---
+## 2026-01-30 23:54 PST - US-FIX-006
+- Verified production build (`npm run build`).
+---
+
+---
+## 2026-01-31 10:55 PST - US-SHOP-001
+- Added inventory fetch/summary/sample formatting to shopping-followup, with direct response for 'what do i have'.
+- Updated prompt and conversation context to include inventory summary and sample items.
+- Files changed: supabase/functions/shopping-followup/index.ts
+## 2026-01-31 00:55 PST - US-SHOP-001
+- Verified production build (`npm run build`).
+- Confirmed inventory context integration, summary generation, and direct response for "what do I have" queries.
+- Files changed: supabase/functions/shopping-followup/index.ts
+---
+---
+## 2026-01-31 00:57 PST - US-SHOP-001
+- Verified production build (`npm run build`).
+- Confirmed inventory context, summary, and direct response wiring in shopping-followup.
+- Files changed: supabase/functions/shopping-followup/index.ts
+
+## 2026-01-31 12:30 PST - US-SHOP-001
+- Verified inventory fetch/summary/sample integration in shopping-followup and direct response for 'what do I have'.
+- Verified production build (npm run build).
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/prompt.md, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 01:00 PST - US-SHOP-001
+- Verified inventory context wiring in shopping-followup and direct response for "what do I have".
+- Verified production build (npm run build).
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+
+## 2026-01-31 00:00 PST - US-SHOP-001
+- Verified inventory context, summary, and direct response wiring in shopping-followup.
+- Verified production build (npm run build).
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+## 2026-01-31 01:03 PST - US-SHOP-001
+- Verified inventory context wiring in shopping-followup and direct response for "what do I have".
+- Verified production build (npm run build).
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+
+## 2026-01-31 01:07 PST - US-SHOP-001
+- Confirmed build passed: npm run build.
+- No additional code changes needed; inventory context already implemented.
+---
+## 2026-01-31 01:05 PST - US-SHOP-001
+- Confirmed inventory context already implemented in shopping-followup.
+- Ran npm run build (passed with existing warnings).
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 01:12 PST - US-SHOP-001
+- Confirmed inventory context already implemented in shopping-followup.
+- Ran npm run build (passed with existing warnings).
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+
+## 2026-01-31 01:09 PST - US-SHOP-001
+- Verified inventory context wiring in shopping-followup and direct response for "what do I have".
+- Verified production build (npm run build).
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/prompt.md, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 01:11 PST - US-SHOP-001
+- Verified inventory context already implemented in shopping-followup.
+- Ran npm run build (passed with existing warnings).
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 01:32 PST - US-SHOP-001
+- Ran npm run build (warnings about CSS import order and chunk size). Build succeeded.
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 01:23 PST - US-SHOP-002
+- Added intent detection, relevant item fetching, and formatted intent-specific lists for shopping follow-ups.
+- Wired semantic search/compare embeddings and declutter/organize candidate logic into the follow-up handler and prompts.
+- Verified production build (npm run build) with existing CSS warnings.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+
+## 2026-01-31 12:45 PST - US-SHOP-002
+- Added structured relevant items array to shopping-followup conversation context for intent-aware responses.
+- Verified production build (npm run build) with existing CSS warnings.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+
+## 2026-01-31 13:10 PST - US-SHOP-002
+- Verified intent-aware relevant item flow and no-match response handling in shopping-followup.
+- Ran npm run build (warnings about CSS import order and chunk size). Build succeeded.
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 01:27 PST - US-SHOP-002
+- Verified intent-aware relevant item flow and no-match responses in shopping-followup.
+- Ran npm run build (warnings about CSS import order, CSS token, and chunk size). Build succeeded.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 02:10 PST - US-SHOP-003
+- Added embedding-based intent detection with cached example embeddings and cosine similarity.
+- Switched follow-up handler to use embedding detection with confidence logging and keyword fallback.
+- Ran npm run build (warnings about CSS token, import order, and chunk size). Build succeeded.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 02:11 PST - US-SHOP-003
+- Updated intent examples to 4-5 phrases per intent and aligned declutter/find examples with acceptance phrases.
+- Kept embedding intent detection with cached example embeddings, cosine similarity, and keyword fallback.
+- Ran npm run build (warnings about CSS token, import order, and chunk size). Build succeeded.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 02:45 PST - US-SHOP-003
+- Aligned intent examples with acceptance list and updated declutter/find phrases.
+- Ran npm run build (warnings about CSS token, import order, and chunk size). Build succeeded.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 02:55 PST - US-SHOP-003
+- Added find keyword fallback for 'locate my' to cover embedding failure cases.
+- Ran npm run build (warnings about CSS token, import order, and chunk size). Build succeeded.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 02:15 PST - US-SHOP-003
+- Expanded compare/general intent examples to 4 phrases each to meet minimum example count per intent.
+- Ran npm run build (warnings about CSS token, import order, and chunk size). Build succeeded.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+
+## 2026-01-31 02:58 PST - US-SHOP-003
+- Updated intent examples to cover acceptance phrases for declutter and find.
+- Verified production build (npm run build) with existing CSS warnings.
+- Files changed: supabase/functions/shopping-followup/index.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 03:14 PST - US-MKT-001
+- Added marketplace listings, transactions, and messages tables with RLS policies and indexes.
+- Added marketplace TypeScript types for listings, transactions, and messages.
+- Ran npm run build (see build output for details).
+- Files changed: supabase/migrations/20260131000002_create_marketplace_tables.sql, src/types/database.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 03:17 PST - US-MKT-001
+- Added marketplace listings, transactions, and messages migration with RLS policies and indexes.
+- Confirmed marketplace TypeScript types already present in database types.
+- Ran npm run build (warnings about CSS import order, CSS token, and chunk size).
+- Files changed: supabase/migrations/20260131031617_create_marketplace_tables.sql, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 14:30 PST - US-MKT-001
+- Confirmed marketplace migration and TypeScript types for listings, transactions, and messages.
+- Ran npm run build to verify production build.
+- Files changed: supabase/migrations/20260131031617_create_marketplace_tables.sql, src/types/database.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 03:24 PST - US-MKT-001
+- Confirmed marketplace migration and TypeScript types for listings, transactions, and messages.
+- Ran npm run build (warnings about CSS @import order, CSS token, and chunk size). Build succeeded.
+- Files changed: supabase/migrations/20260131031617_create_marketplace_tables.sql, src/types/database.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 03:26 PST - US-MKT-001
+- Confirmed marketplace listings/transactions/messages migration and TypeScript types are present.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: supabase/migrations/20260131031617_create_marketplace_tables.sql, src/types/database.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 03:28 PST - US-MKT-001
+- Verified marketplace migration and TypeScript types already present.
+- Ran npm run build (same CSS warnings about @import order and WebKit token). Build succeeded.
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 03:32 PST - US-MKT-001
+- Confirmed marketplace listings/transactions/messages migration and TypeScript types are present.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 03:35 PST - US-MKT-001
+- Confirmed marketplace migration and TypeScript types for listings, transactions, and messages.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+---
+## 2026-01-31 03:38 PST - US-MKT-001
+- Confirmed marketplace listings/transactions/messages migration and TypeScript types.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: supabase/migrations/20260131031617_create_marketplace_tables.sql, src/types/database.ts, scripts/ralph-fixes/progress.txt
+## 2026-01-31 03:42 PST - US-MKT-001
+- Verified marketplace listings/transactions/messages migration and TypeScript types are present.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: supabase/migrations/20260131031617_create_marketplace_tables.sql, src/types/database.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 12:10 PST - US-MKT-002
+- Added marketplace profile fields migration with updated RLS policies and indexes.
+- Updated Profile TypeScript interface with seller fields and last_active_at.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: supabase/migrations/20260131120000_extend_profiles_for_marketplace.sql, src/types/database.ts, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 05:34 PST - US-MKT-003
+- Added listings hook and listing form modal to create active marketplace listings.
+- Wired Item Detail listing actions and Listed badge; added active listing badges in gallery and list views.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: src/hooks/useListings.ts, src/components/ListingFormModal.tsx, src/pages/ItemDetailPage.tsx, src/hooks/useInventoryItems.ts, src/components/GalleryGrid.tsx, src/components/ItemList.tsx, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 06:29 PST - US-MKT-003
+- Verified listing form modal, listing hook, and item detail listing actions are present.
+- Confirmed Listed badges render in gallery and list views via active listing lookups.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+---
+## 2026-01-31 12:58 PST - US-MKT-004
+- Added My Listings page with status tabs, list cards, pull-to-refresh, and empty state.
+- Added Edit Listing modal with update, mark sold, and remove actions using confirm dialogs and toasts.
+- Wired listings hook updates, App route, and Settings link.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: src/hooks/useListings.ts, src/components/EditListingModal.tsx, src/pages/MyListingsPage.tsx, src/pages/index.ts, src/App.tsx, src/pages/SettingsPage.tsx, scripts/ralph-fixes/progress.txt
+## 2026-01-31 06:37 PST - US-MKT-004
+- Added My Listings management page with filters, pull-to-refresh, and edit modal actions for updating, marking sold, and removing listings.
+- Wired route + settings link, and exposed listing hooks for listing updates.
+- Verified production build (npm run build).
+- Files changed: src/pages/MyListingsPage.tsx, src/components/EditListingModal.tsx, src/hooks/useListings.ts, src/pages/index.ts, src/App.tsx, src/pages/SettingsPage.tsx, scripts/ralph-fixes/progress.txt
+---
+---
+## 2026-01-31 13:33 PST - US-MKT-005
+- Added marketplace browse page with search, filters, sort, pull-to-refresh, and infinite scroll.
+- Created marketplace hook, listing cards, and filter bottom sheet; wired routes and exports.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: src/hooks/useMarketplace.ts, src/components/MarketplaceCard.tsx, src/components/MarketplaceFilterSheet.tsx, src/pages/MarketplacePage.tsx, src/pages/index.ts, src/App.tsx, scripts/ralph-fixes/progress.txt
+---
+## 2026-01-31 14:45 PST - US-MKT-006
+- Added marketplace listing detail page with hero image viewer, seller section, share, and sticky actions.
+- Extended marketplace hook to fetch listing detail data with seller info and status handling.
+- Added placeholder seller profile page and routed listing detail + seller routes.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: src/hooks/useMarketplace.ts, src/pages/ListingDetailPage.tsx, src/pages/SellerProfilePage.tsx, src/pages/index.ts, src/App.tsx, scripts/ralph-fixes/progress.txt
+## 2026-01-31 12:50 PST - US-MKT-006
+- Verified listing detail page route, layout, seller card, share action, and owner/unavailable states.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: scripts/ralph-fixes/progress.txt
+---
+---
+## 2026-01-31 16:10 PST - US-MKT-007
+- Added purchase request modal, transaction hook, and notification helper for marketplace purchase flow.
+- Wired listing detail buy action to open request modal and show success state.
+- Updated My Listings + Edit Listing modal to show pending requests, accept/decline, and completion flow.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: src/hooks/useTransactions.ts, src/lib/notifications.ts, src/components/PurchaseRequestModal.tsx, src/pages/ListingDetailPage.tsx, src/pages/MyListingsPage.tsx, src/components/EditListingModal.tsx, scripts/ralph-fixes/progress.txt
+---
+## 2026-02-01 10:15 PST - US-MKT-008
+- Added messaging hook with conversation list, message fetch/send, unread counts, and realtime subscription handling.
+- Created messages list and chat pages with listing header, message bubbles, and input UI.
+- Wired message routes, settings badge, and listing detail message action.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: src/hooks/useMessages.ts, src/pages/MessagesPage.tsx, src/pages/ChatPage.tsx, src/pages/ListingDetailPage.tsx, src/pages/SettingsPage.tsx, src/pages/index.ts, src/App.tsx, scripts/ralph-fixes/progress.txt
+## 2026-02-01 14:05 PST - US-MKT-009
+- Added marketplace notification types, data payloads, and notification preferences with new user settings fields.
+- Wired marketplace notifications into transactions and messages with item/participant context and navigation targets.
+- Updated notifications UI for marketplace icons and destinations and added marketplace notifications hook.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: supabase/migrations/20260201000001_add_marketplace_notifications.sql, src/lib/notifications.ts, src/hooks/useMarketplaceNotifications.ts, src/hooks/useTransactions.ts, src/hooks/useMessages.ts, src/hooks/useUserSettings.ts, src/pages/NotificationsPage.tsx, src/pages/SettingsPage.tsx, src/types/database.ts, src/types/index.ts, scripts/ralph-fixes/progress.txt
+---
+---
+## 2026-02-01 20:39 PST - US-MKT-010
+- Added reviews migration, review hook, star rating component, and review modal for user ratings.
+- Updated seller profile and listing detail views to display ratings and recent reviews.
+- Added pending review prompts in My Listings and Notifications with review modal access.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: supabase/migrations/20260201_create_reviews_table.sql, src/components/StarRating.tsx, src/components/ReviewModal.tsx, src/hooks/useReviews.ts, src/pages/SellerProfilePage.tsx, src/pages/ListingDetailPage.tsx, src/pages/MyListingsPage.tsx, src/pages/NotificationsPage.tsx, src/types/database.ts, scripts/ralph-fixes/progress.txt
+## 2026-01-31 20:41 PST - US-MKT-010
+- Verified reviews migration, hooks, UI, and rating displays for seller and listing detail.
+- Confirmed pending review prompts and review modal flow for completed transactions.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: supabase/migrations/20260201_create_reviews_table.sql, src/components/StarRating.tsx, src/components/ReviewModal.tsx, src/hooks/useReviews.ts, src/pages/SellerProfilePage.tsx, src/pages/ListingDetailPage.tsx, src/pages/MyListingsPage.tsx, src/pages/NotificationsPage.tsx, src/types/database.ts, scripts/ralph-fixes/progress.txt
+## 2026-02-01 21:30 PST - US-MKT-011
+- Added saved listings migration, hook, save button, saved listings page, and routes/settings link.
+- Updated listing cards/detail to include save buttons with optimistic toggle and toasts; saved listings page shows unavailable overlay and empty state.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size).
+- Files changed: supabase/migrations/20260201_create_saved_listings_table.sql, src/hooks/useSavedListings.ts, src/components/SaveButton.tsx, src/components/MarketplaceCard.tsx, src/pages/SavedListingsPage.tsx, src/pages/ListingDetailPage.tsx, src/pages/index.ts, src/App.tsx, src/pages/SettingsPage.tsx, scripts/ralph-fixes/progress.txt
+---
+## 2026-02-01 21:52 PST - US-MKT-012
+- Added debounced marketplace search with recent searches dropdown, clear button, and empty-results message.
+- Expanded marketplace query to search name, description, and category name.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size). Build succeeded.
+- Files changed: src/hooks/useMarketplace.ts, src/pages/MarketplacePage.tsx, scripts/ralph-fixes/progress.txt
+## 2026-01-31 22:39 PST - US-MKT-014
+- Updated bottom nav order and added Marketplace + Messages icons with unread badge.
+- Hid labels on mobile; labels shown on tablet+.
+- Ran npm run build (warnings about CSS token, @import order, and chunk size).
+- Files changed: src/components/layout/BottomNav.tsx, scripts/ralph-fixes/progress.txt
+---
+## 2026-02-01 00:42 PST - US-MKT-014
+- Updated bottom navigation to include Marketplace and Messages in the main order, with active state styling and unread badge for messages.
+- Verified responsive labels (icons only on mobile, labels on tablet+).
+- Ran npm run build (warnings about CSS @import order, CSS token, and chunk size). Build succeeded.
+- Files changed: src/components/layout/BottomNav.tsx

@@ -1,0 +1,292 @@
+# Ralph Progress Log
+Started: Tue Feb  3 02:02:53 PST 2026
+---
+
+## Codebase Patterns
+- Edge Functions use `Deno.serve()` for HTTP handling and `corsHeaders` from `../_shared/cors.ts`
+- Edge Functions use service role key for bypassing RLS when needed
+- Use `jsr:@supabase/supabase-js@2` for Supabase client in Edge Functions
+- Notifications table has `is_pushed` and `pushed_at` columns for tracking push delivery
+- Push subscriptions store `endpoint`, `p256dh`, `auth` keys from Web Push API
+- Database triggers use `pg_net` extension for async HTTP calls to Edge Functions
+- Trigger configuration requires `app.settings.supabase_url` and `app.settings.service_role_key` via Supabase Vault
+- User presence table tracks active_listing_id with last_seen timestamp for push suppression
+- Hooks for database upserts should use type casting with `ReturnType<typeof supabase.from>` to handle typing issues
+- Custom service worker code: use vite-plugin-pwa `workbox.importScripts` with files in `public/` directory
+- Message batching uses pending_push_notifications table with 5-second window - process via scheduled job calling process-batched-notifications Edge Function
+- Items table columns: Update migration, database.ts (Item interface + Insert type), and ItemDetailPage.tsx RawItemDetails interface
+
+## 2026-02-03 - US-001
+- **What was implemented**: Created `send-push-notification` Edge Function
+- **Files changed**:
+  - `supabase/functions/send-push-notification/index.ts` (new)
+  - `CLAUDE.md` (updated Edge Functions table and VAPID documentation)
+- **Learnings for future iterations:**
+  - Web Push requires VAPID authentication with JWT tokens signed using ES256 (ECDSA P-256)
+  - Deno's native `crypto.subtle` API can handle ECDH key agreement and AES-GCM encryption
+  - Push subscriptions that return 404 or 410 should be removed (expired/unsubscribed)
+  - VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT must be set as Supabase secrets
+  - The `aes128gcm` content encoding format requires specific header structure: salt (16 bytes) + record size (4 bytes) + keyid length (1 byte) + server public key (65 bytes) + encrypted data
+---
+
+## 2026-02-03 - US-002
+- **What was implemented**: Created database trigger for notification push delivery
+- **Files changed**:
+  - `supabase/migrations/20260203000001_create_push_notification_trigger.sql` (new)
+  - `supabase/functions/send-push-notification/index.ts` (updated)
+- **Learnings for future iterations:**
+  - `pg_net` extension enables async HTTP calls from database triggers without blocking
+  - Trigger WHEN clause allows conditional execution (e.g., `WHEN (NEW.is_pushed = false)`)
+  - Database settings for Edge Function URLs can be stored in Supabase Vault and accessed via `current_setting()`
+  - AFTER INSERT triggers ensure the row exists when the Edge Function queries it
+  - Edge Function should update `is_pushed = true` and `pushed_at = now()` after successful delivery to prevent duplicate pushes
+---
+
+## 2026-02-03 - US-003
+- **What was implemented**: Added user presence tracking for smart push suppression
+- **Files changed**:
+  - `supabase/migrations/20260203000002_create_user_presence_table.sql` (new)
+  - `supabase/migrations/20260203000003_add_presence_check_to_push_trigger.sql` (new)
+  - `src/hooks/usePresence.ts` (new)
+  - `src/pages/ChatPage.tsx` (updated - added presence tracking)
+  - `src/types/database.ts` (updated - added UserPresence type)
+- **Learnings for future iterations:**
+  - Presence tracking uses a unique index on user_id to ensure one presence record per user
+  - The usePresence hook uses setInterval (20s) to keep presence fresh while on a conversation
+  - Trigger function extracts `listing_id` from notification `data` JSONB field for presence check
+  - When skipping push due to presence, still mark `is_pushed = true` to prevent re-triggering
+  - Type casting `supabase.from()` with `ReturnType<typeof supabase.from>` helps with upsert type issues
+---
+
+## 2026-02-03 - US-004
+- **What was implemented**: Real-time chat push notifications with proper formatting and service worker click handling
+- **Files changed**:
+  - `src/lib/notifications.ts` (updated - new_message format and message_preview field)
+  - `src/hooks/useMessages.ts` (updated - pass message preview to notification)
+  - `public/sw-push.js` (new - custom service worker for push/click handling)
+  - `vite.config.ts` (updated - importScripts for custom SW)
+- **Learnings for future iterations:**
+  - vite-plugin-pwa supports `importScripts` in workbox config to inject custom service worker code
+  - Custom SW file goes in `public/` directory and is served at root (e.g., `/sw-push.js`)
+  - Service worker `notificationclick` handler should use `clients.matchAll()` to find existing windows before opening new ones
+  - Notification `data` object persists custom fields (type, listing_id) through to the click handler
+  - Message preview should be truncated to 50 chars for push body to maintain readability
+---
+
+## 2026-02-03 - US-005
+- **What was implemented**: Message batching for rapid messages from same sender
+- **Files changed**:
+  - `supabase/migrations/20260203000004_create_pending_push_notifications_table.sql` (new)
+  - `supabase/migrations/20260203000005_add_message_batching_to_push_trigger.sql` (new)
+  - `supabase/functions/process-batched-notifications/index.ts` (new)
+  - `src/hooks/usePresence.ts` (updated - added clearPendingBatch function)
+  - `src/types/database.ts` (updated - added PendingPushNotification type)
+  - `CLAUDE.md` (updated - documented new Edge Function)
+- **Learnings for future iterations:**
+  - Use UNIQUE constraint on (user_id, sender_id, listing_id) for pending batches instead of separate index
+  - ON CONFLICT DO UPDATE allows atomic upsert for batch accumulation
+  - The process-batched-notifications function should be called via scheduled job (every 5 seconds) - Supabase doesn't have built-in cron, use external scheduler
+  - Batches older than 1 hour should be deleted to prevent buildup from failed processing
+  - Clear pending batches when user views conversation via setActiveConversation hook
+---
+
+## 2026-02-03 - US-006
+- **What was implemented**: Transaction status push notification formatting and service worker routing
+- **Files changed**:
+  - `src/lib/notifications.ts` (updated - transaction notification title/body formatting per AC)
+  - `public/sw-push.js` (updated - explicit transaction type routing to listing detail)
+- **Learnings for future iterations:**
+  - Transaction notification format: title should contain actionable info (sender + action), body provides context
+  - Service worker should explicitly list transaction types for clearer routing logic
+  - All transaction notifications in useTransactions.ts already include listing_id in data for deep linking
+  - The `new_inquiry` notification type exists but may not have a UI trigger yet - the formatting is ready
+---
+
+## 2026-02-03 - US-007
+- **What was implemented**: Added warranty_expiring notification type and warranty reminder user settings
+- **Files changed**:
+  - `supabase/migrations/20260203000006_add_warranty_expiring_notification_type.sql` (new)
+  - `src/types/database.ts` (updated - added warranty_expiring type and warranty_reminder_* settings)
+- **Learnings for future iterations:**
+  - When adding new notification types, must update both the SQL constraint and the TypeScript NotificationType union
+  - User settings columns with defaults should use NOT NULL DEFAULT to ensure new users get sensible values
+  - Database type definitions in database.ts have three places to update: interface, Insert type (with optional fields), and Row type
+---
+
+## 2026-02-03 - US-008
+- **What was implemented**: Updated generate-reminders Edge Function for warranty alerts
+- **Files changed**:
+  - `supabase/migrations/20260203000007_add_warranty_expiry_date_to_items.sql` (new)
+  - `supabase/functions/generate-reminders/index.ts` (updated - added warranty reminder logic)
+  - `src/types/database.ts` (updated - added warranty_expiry_date to Item interface and Insert type)
+  - `src/pages/ItemDetailPage.tsx` (updated - added warranty_expiry_date to RawItemDetails and transform)
+- **Learnings for future iterations:**
+  - When adding columns to items table, must update: migration, database.ts Item interface, database.ts Insert type, and any component-specific raw types
+  - ItemDetailPage has its own RawItemDetails interface that mirrors Item - must be kept in sync manually
+  - The generate-reminders function queries user_settings with `or('reminder_enabled.eq.true,warranty_reminder_enabled.eq.true')` to get users who want any type of reminder
+  - Warranty notifications use 7-day deduplication window (longer than expiring_item's 24-hour window) to prevent spam for same item
+  - formatDate helper function formats dates as "Month Day, Year" (e.g., "February 15, 2026") for user-friendly display
+---
+
+## 2026-02-03 - US-009
+- **What was implemented**: Custom reminder push notifications
+- **Files changed**:
+  - `src/pages/ItemDetailPage.tsx` (updated - added reminder fields to RawItemDetails, transformRawItem, and Supabase query)
+  - `src/components/layout/AppShell.tsx` (updated - removed unused icon components)
+  - `src/pages/InventoryPage.tsx` (updated - fixed unused variable)
+- **Learnings for future iterations:**
+  - Custom reminder functionality was already implemented in generate-reminders Edge Function and migration 20260203000008
+  - The ItemDetailPage has its own RawItemDetails interface that needs to be kept in sync with the Item type from database.ts
+  - When adding new fields to items table, update: migration, database.ts Item interface, and ItemDetailPage RawItemDetails + query
+  - Service worker (sw-push.js) already handles custom_reminder in itemReminderTypes array, routing to /item/{itemId}
+  - Pre-existing unused code issues (noUnusedLocals) should be cleaned up when encountered to prevent build failures
+---
+
+## 2026-02-03 - US-010
+- **What was implemented**: Tabbed navigation for NotificationsPage with Messages and Reminders tabs
+- **Files changed**:
+  - `src/pages/NotificationsPage.tsx` (updated - added tab bar, filtering, URL persistence, unread badges)
+- **Learnings for future iterations:**
+  - Use `useSearchParams` from react-router-dom for URL parameter persistence with `replace: true` to avoid history bloat
+  - Use `useMemo` for efficient filtering and counting that depends on notifications array
+  - MESSAGE_TYPES and REMINDER_TYPES constants centralize the notification type categorization
+  - Tab default logic: check unread counts before URL param to provide smart defaults
+  - Empty state should be tab-aware to provide contextually relevant messaging
+  - Icon colors follow a consistent pattern: purple for warranty, teal for custom reminders
+---
+
+## 2026-02-03 - US-011
+- **What was implemented**: Notification grouping by date with section headers
+- **Files changed**:
+  - `src/pages/NotificationsPage.tsx` (updated - added date grouping functions and section rendering)
+- **Learnings for future iterations:**
+  - Use Map to maintain insertion order for date groups ('today' → 'yesterday' → 'this_week' → 'earlier')
+  - Date comparison should use date-only values (reset time components) for accurate day boundaries
+  - Section headers can use sticky positioning with z-index to stay visible during scroll
+  - Filter out empty groups during rendering using .filter() or null return in .map()
+  - Week boundary calculation: subtract day-of-week from today to get start of week (Sunday)
+  - The groupedNotifications Map fits naturally into useMemo alongside filteredNotifications
+---
+
+## 2026-02-03 - US-012
+- **What was implemented**: Swipe-to-delete for individual notifications
+- **Files changed**:
+  - `src/hooks/useNotifications.ts` (updated - added deleteNotification function)
+  - `src/pages/NotificationsPage.tsx` (updated - swipe gesture handling in NotificationItem)
+- **Learnings for future iterations:**
+  - Touch gesture implementation: use touchstart/touchmove/touchend events with refs to track start position
+  - Horizontal vs vertical swipe detection: compare absolute x/y differences on first significant movement (>10px)
+  - Prevent default on horizontal swipes to avoid scroll interference
+  - Apply resistance factor (0.8) and max offset limit (threshold * 1.5) for natural swipe feel
+  - Animation pattern: set isDeleting state, animate with CSS transform, then setTimeout for actual delete
+  - Click vs swipe distinction: check if swipeOffset < 5 and not actively swiping before triggering click handler
+  - Supabase delete requires type casting like other mutations: `(supabase.from('notifications') as ReturnType<typeof supabase.from>).delete()`
+  - Re-throw errors from delete function so component can reset UI state on failure
+---
+
+## 2026-02-03 - US-013
+- **What was implemented**: Comprehensive notification settings section in SettingsPage
+- **Files changed**:
+  - `src/pages/SettingsPage.tsx` (updated - added dedicated Notifications section)
+- **Learnings for future iterations:**
+  - Permission state display should show visual indicators (green checkmark for granted, red X for denied, gray question for default)
+  - Denied permission instructions should be platform-specific (Chrome, Safari, Firefox, mobile)
+  - Master toggle should be disabled when permission is denied to prevent confusion
+  - The toggle should also check if permission is granted before showing as enabled (setting AND permission)
+  - usePushNotifications hook already provides requestPermission and unsubscribe functions that handle the full flow
+---
+
+## 2026-02-03 - US-014
+- **What was implemented**: Per-category notification toggles for Item Reminders section
+- **Files changed**:
+  - `supabase/migrations/20260203000009_add_custom_reminder_enabled_to_user_settings.sql` (new)
+  - `src/types/database.ts` (updated - added custom_reminder_enabled to UserSettings interface and Insert type)
+  - `src/hooks/useUserSettings.ts` (updated - added warranty_reminder_enabled and custom_reminder_enabled to updateSettings type)
+  - `src/pages/SettingsPage.tsx` (updated - added Item Reminders section with expiry, warranty, and custom reminder toggles)
+- **Learnings for future iterations:**
+  - When adding new user_settings columns, update: migration, database.ts (UserSettings interface + Insert type), useUserSettings.ts (updateSettings type), and SettingsPage.tsx (handleSettingChange type)
+  - Marketplace Notifications section was already implemented in a previous story, Item Reminders section complements it
+  - Toggles follow same pattern: use handleSettingChange with the setting key and negated current value
+  - Default true for reminder toggles ensures users get notifications unless they explicitly opt out
+---
+
+## 2026-02-03 - US-015
+- **What was implemented**: Reminder timing configuration dropdowns for expiry and warranty reminders
+- **Files changed**:
+  - `src/pages/SettingsPage.tsx` (updated - added EXPIRY_REMINDER_OPTIONS and WARRANTY_REMINDER_OPTIONS constants, added timing dropdowns to Item Reminders section)
+  - `src/hooks/useUserSettings.ts` (updated - added warranty_reminder_days to updateSettings type)
+- **Learnings for future iterations:**
+  - Existing dropdown patterns in SettingsPage already handle the Reminders & Notifications section - Item Reminders section needed its own dropdowns
+  - Conditional rendering of dropdowns (only when toggle is enabled) provides cleaner UX
+  - The expiration_reminder_days column was already in place from previous stories, warranty_reminder_days was added in US-007
+  - When adding new setting keys, update both useUserSettings hook types and handleSettingChange function type in SettingsPage
+  - Dropdown width should match the longest option text (w-36 for expiry, w-40 for warranty)
+---
+
+## 2026-02-03 - US-016
+- **What was implemented**: Verified service worker push notification handling (already complete from US-004)
+- **Files changed**:
+  - `scripts/ralph/prd.json` (updated - marked US-016 as passes: true)
+- **Learnings for future iterations:**
+  - The custom service worker (public/sw-push.js) was implemented in US-004 and already satisfies all US-016 criteria
+  - vite-plugin-pwa `importScripts` config imports custom SW code into the generated service worker
+  - Service worker push event handler: parse JSON payload, extract title/body/data, show notification with app icon
+  - Service worker notificationclick handler: type-based URL routing (messages→/messages/{id}, transactions→/listing/{id}, reminders→/item/{id})
+  - Tab management: `clients.matchAll()` finds existing windows, `client.navigate()` + `client.focus()` for reuse, `clients.openWindow()` for new tabs
+  - When acceptance criteria are already met by previous work, document it and mark complete rather than duplicating effort
+---
+
+## 2026-02-03 - US-017
+- **What was implemented**: Notification action buttons for quick response from push notifications
+- **Files changed**:
+  - `public/sw-push.js` (updated - added action buttons and refactored click handling)
+- **Learnings for future iterations:**
+  - Web Push API supports `actions` array in notification options with `action`, `title`, and `icon` properties
+  - `event.action` in notificationclick handler contains the action string if user clicked an action button (undefined for regular clicks)
+  - Action buttons provide shortcuts to the same destinations as clicking the notification body - same routing logic applies
+  - Refactored notification type constants (MESSAGE_TYPES, TRANSACTION_TYPES, ITEM_REMINDER_TYPES) to be shared between action generation and click handling
+  - Note: Maximum 2-3 actions supported on most platforms, some platforms may not show actions at all (graceful degradation)
+---
+
+## 2026-02-03 - US-018
+- **What was implemented**: Handle notification permission denial gracefully in NotificationsPage
+- **Files changed**:
+  - `src/pages/NotificationsPage.tsx` (updated - added NotificationsDeniedBanner component)
+- **Learnings for future iterations:**
+  - Use usePushNotifications hook to access permissionState ('granted', 'denied', 'default', 'unsupported')
+  - Collapsible banner pattern: use useState for isExpanded, toggle button with rotating chevron icon
+  - Platform-specific instructions should cover: Chrome (desktop), Safari (Mac), Firefox, and Mobile (iOS/Android)
+  - Link to Settings page provides access to more detailed notification configuration
+  - Conditionally render banner with: isPushSupported && permissionState === 'denied'
+---
+
+## 2026-02-03 - US-019
+- **What was implemented**: Notification deduplication via event_key column
+- **Files changed**:
+  - `supabase/migrations/20260203000010_add_notification_deduplication.sql` (new)
+  - `src/types/database.ts` (updated - added event_key to Notification interface and table types)
+- **Learnings for future iterations:**
+  - Database-level deduplication (via triggers) is more reliable than client-side checks as it works regardless of notification source
+  - Use BEFORE INSERT trigger returning NULL to silently skip duplicate inserts without error
+  - Event key format: {type}:{identifier}:{date_bucket} provides good balance of uniqueness and 24-hour deduplication
+  - For marketplace notifications, use composite identifier (listing_id:sender_id for messages) to distinguish different senders
+  - IMMUTABLE functions can be used for key generation when no side effects occur
+  - Partial indexes (`WHERE event_key IS NOT NULL`) optimize storage for nullable columns
+---
+
+## 2026-02-03 - US-020
+- **What was implemented**: Notification sound and vibration with user toggle
+- **Files changed**:
+  - `supabase/migrations/20260203000011_add_notification_sound_enabled_to_user_settings.sql` (new)
+  - `src/types/database.ts` (updated - added notification_sound_enabled to UserSettings interface and Insert type)
+  - `src/hooks/useUserSettings.ts` (updated - added notification_sound_enabled to updateSettings type)
+  - `src/pages/SettingsPage.tsx` (updated - added notification sound toggle in Notifications section)
+  - `public/sw-push.js` (updated - added sound/vibration patterns based on notification type)
+  - `supabase/functions/send-push-notification/index.ts` (updated - fetch user sound preference and include in payload)
+- **Learnings for future iterations:**
+  - Web Push Notification API uses `silent` property (true = no sound, false/undefined = default sound)
+  - Vibration patterns are arrays of milliseconds: [duration, pause, duration, ...] - e.g., [100, 50, 100] for double vibration
+  - Service worker can receive user preferences via the push payload - Edge Function fetches from user_settings and includes in notification JSON
+  - Conditionally show settings UI based on feature state (e.g., show sound toggle only when push enabled AND permission granted)
+  - When adding new user_settings columns: update migration, database.ts (UserSettings interface + Insert type), useUserSettings.ts (updateSettings type union), and SettingsPage.tsx (handleSettingChange type union)
+---

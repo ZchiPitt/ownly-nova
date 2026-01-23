@@ -1,0 +1,2514 @@
+# Ralph Progress Log
+# Project: Ownly - Smart Home Inventory App
+# Branch: ralph/smart-home-inventory-mvp
+# Created: 2026-01-23
+
+## Codebase Patterns
+- Uses Tailwind CSS v4 with @tailwindcss/vite plugin (no tailwind.config.js needed)
+- Uses TanStack React Query for server state management
+- Uses React Router v6 for navigation
+- Mobile-first design approach
+- Supabase client in `/src/lib/supabase.ts` - import { supabase } from '@/lib/supabase'
+- Use `import.meta.env.VITE_*` for environment variables (Vite pattern)
+- SQL migrations in `supabase/migrations/` with timestamp prefix (YYYYMMDDHHMMSS_description.sql)
+- The `update_updated_at_column()` function exists and is reusable for other tables needing updated_at triggers
+- Trigger chain for new users: auth.users -> profiles (via handle_new_user) -> user_settings (via handle_new_profile)
+- The `update_location_item_count()` function maintains location.item_count on items table changes (handles insert, delete, soft-delete, restore, location changes)
+- pgvector extension enabled for vector similarity search with HNSW indexing
+- Use `search_similar_items()` function for client-side similarity search (uses auth.uid() for RLS)
+- Types exported from `/src/types/index.ts` - import { Item, Profile, etc. } from '@/types'
+- Database type from `/src/types/database.ts` - use with createClient<Database>()
+- API request/response types from `/src/types/api.ts` for Edge Functions and client-side data fetching
+- Storage bucket 'items' for photos: upload to items/{user_id}/{filename}, RLS enforces user-only access
+- Path alias `@/` configured in vite.config.ts and tsconfig.app.json - use `import { x } from '@/lib/...'`
+- AuthProvider context at `/src/contexts/AuthProvider.tsx` - wrap app with `<AuthProvider>`
+- useAuth hook at `/src/hooks/useAuth.ts` - use `const { user, session, signIn, signOut } = useAuth()`
+- For Fast Refresh compatibility: separate createContext() into its own .ts file, keep provider in .tsx
+- ProtectedRoute wrapper at `/src/components/ProtectedRoute.tsx` - wrap protected routes with `<ProtectedRoute>`
+- Context exports from `/src/contexts/index.ts` - import { AuthProvider, AuthContext } from '@/contexts'
+- AppShell layout at `/src/components/layout/AppShell.tsx` - use `<AppShell>` for pages with bottom nav
+- BottomNav at `/src/components/layout/BottomNav.tsx` - 4 tabs (Home, Add FAB, Inventory, Settings)
+- Layout exports from `/src/components/layout/index.ts` - import { AppShell, BottomNav } from '@/components/layout'
+- Pages exported from `/src/pages/index.ts` - import { SignupPage, LoginPage, etc. } from '@/pages'
+- Auth pages (/signup, /login, /reset-password) are outside AppShell - no bottom navigation
+- Simple Toast component at `/src/components/Toast.tsx` - use `<Toast message="" type="error" onClose={() => {}} />` (to be expanded in US-083)
+- Image utilities at `/src/lib/imageUtils.ts` - use `validateImage()`, `compressImage()`, `convertHeicToJpeg()`, `generateThumbnail()`, `uploadToStorage()`, `processAndUploadImage()`
+- Supabase Edge Functions in `supabase/functions/{function-name}/index.ts` - use Deno runtime with esm.sh imports
+- Shared Edge Function utilities in `supabase/functions/_shared/` - e.g., cors.ts for CORS headers
+- Edge Function auth validation: create Supabase client with user token, call auth.getUser() to verify
+- ItemEditor component at `/src/components/ItemEditor.tsx` - use `<ItemEditor detectedItem={...} imageUrl={...} .../>` for item form
+- ItemEditorPage at `/src/pages/ItemEditorPage.tsx` - route wrapper that receives state via React Router location.state
+- Use `ReturnType<typeof setTimeout>` instead of `NodeJS.Timeout` for browser TypeScript compatibility
+- useCategories hook at `/src/hooks/useCategories.ts` - use `const { categories, createCategory, getSortedCategories } = useCategories()`
+- For Supabase Database types, include `Relationships: []` in table definitions for type compatibility
+- useDashboardStats hook at `/src/hooks/useDashboardStats.ts` - use `const { stats, isLoading, refetch } = useDashboardStats()` for dashboard counts
+- useExpiringItems hook at `/src/hooks/useExpiringItems.ts` - use `const { items, isLoading, refetch } = useExpiringItems(days, limit)` for expiring items
+- useRecentItems hook at `/src/hooks/useRecentItems.ts` - use `const { items, isLoading, refetch } = useRecentItems(limit)` for recently added items
+- Use `.returns<Type[]>()` method on Supabase query chain for proper TypeScript type inference
+- useUserSettings hook at `/src/hooks/useUserSettings.ts` - use `const { settings, updateSettings, isLoading } = useUserSettings()` for user preferences
+- useInventoryItems hook at `/src/hooks/useInventoryItems.ts` - use `const { items, isLoading, isLoadingMore, hasMore, totalCount, loadMore, refresh } = useInventoryItems(options)` for inventory with pagination
+- PAGE_SIZE constant (20) exported from useInventoryItems for consistent pagination
+- GalleryGrid component at `/src/components/GalleryGrid.tsx` - use `<GalleryGrid items={items} isLoading={...} isLoadingMore={...} hasMore={...} totalCount={...} onRefresh={...} onLoadMore={...} />` for 2-column item grid with infinite scroll
+- ItemList component at `/src/components/ItemList.tsx` - use `<ItemList items={items} isLoading={...} isLoadingMore={...} hasMore={...} totalCount={...} onRefresh={...} onLoadMore={...} />` for list view with infinite scroll
+- Use Intersection Observer with rootMargin: '200px' for "load before visible" infinite scroll trigger
+- SortBottomSheet component at `/src/components/SortBottomSheet.tsx` - use `<SortBottomSheet isOpen={...} onClose={...} currentSort={...} onSortChange={...} />`
+- SORT_OPTIONS array in useInventoryItems exports sort configuration (key, label, urlParam)
+- Use `useSearchParams` from react-router-dom for URL param handling (sort, filter, etc.)
+- Use `setSearchParams(params, { replace: true })` to update URL without adding to history
+- useInventoryItems supports `categoryIds: string[]` for multi-select filter (uses Supabase `.in()` operator)
+- Inventory URL filter format: /inventory?location={id}&categories={id1,id2}&sort={key} - location AND categories combine with AND logic
+- useSearch hook at `/src/hooks/useSearch.ts` - use `const { results, isLoading, error, query, setQuery, hasSearched } = useSearch()` for debounced search with abort control
+- SearchResult component at `/src/components/SearchResult.tsx` - use `<SearchResult item={item} query={query} />` for search results with text highlighting
+- For searching joined tables in Supabase, use separate queries with `!inner` join then combine and deduplicate results by id
+- Use AbortController with Supabase `.abortSignal()` to cancel in-flight requests when new search initiated
+- For Web Speech API types, add global Window declarations: `interface Window { SpeechRecognition?: ...; webkitSpeechRecognition?: ...; }`
+- useRecentSearches hook at `/src/hooks/useRecentSearches.ts` - use `const { recentSearches, addSearch, removeSearch, clearAll } = useRecentSearches()` for localStorage-persisted search history
+- usePushNotifications hook at `/src/hooks/usePushNotifications.ts` - use `const { permissionState, isSupported, isRequesting, requestPermission, unsubscribe } = usePushNotifications()` for Web Push API permission flow
+- push_subscriptions table stores Web Push subscription endpoints (endpoint, p256dh, auth keys)
+- VAPID public key configured via `VITE_VAPID_PUBLIC_KEY` environment variable for Web Push
+- useOnlineStatus hook at `/src/hooks/useOnlineStatus.ts` - use `const { isOnline, isOffline } = useOnlineStatus()` for tracking connection status
+- useOffline hook at `/src/hooks/useOffline.ts` - use `const { isOnline, requireOnline, showOfflineToast } = useOffline()` for offline state and actions
+- OfflineProvider at `/src/contexts/OfflineProvider.tsx` - provides offline context; wrap app with `<OfflineProvider>`
+- OfflineBanner at `/src/components/OfflineBanner.tsx` - shows "You're offline" banner at top when disconnected
+- requireOnline(actionName) returns true if online, false if offline (also shows toast with action message)
+- shopping-followup Edge Function at `supabase/functions/shopping-followup/index.ts` for chat follow-up questions
+- ShoppingConversationMessage type in api.ts for passing conversation context to Edge Functions
+
+---
+
+## 2026-01-23 - US-001
+- What was implemented:
+  - Created React app with Vite and TypeScript template
+  - Installed and configured Tailwind CSS v4 with @tailwindcss/vite plugin
+  - Installed React Router v6 for navigation
+  - Installed TanStack React Query for server state management
+  - Created base folder structure: /src/components, /src/pages, /src/hooks, /src/lib, /src/types
+  - Configured App.tsx with QueryClientProvider and BrowserRouter
+
+- Files changed:
+  - package.json (dependencies and project metadata)
+  - vite.config.ts (added Tailwind plugin)
+  - src/index.css (Tailwind imports and base styles)
+  - src/App.tsx (React Query and Router setup)
+  - Created folder structure with .gitkeep files
+
+- **Learnings for future iterations:**
+  - Tailwind CSS v4 uses `@import "tailwindcss"` syntax, no @tailwind directives
+  - Tailwind CSS v4 doesn't need tailwind.config.js when using @tailwindcss/vite plugin
+  - The project uses React 19 with concurrent features
+  - TanStack React Query v5 is installed
+---
+
+## 2026-01-23 - US-002
+- What was implemented:
+  - Installed @supabase/supabase-js package
+  - Created /src/lib/supabase.ts with typed client initialization
+  - Created placeholder Database type in /src/types/database.ts (to be expanded in US-011)
+  - Created .env.example with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY placeholders
+  - Added .env to .gitignore for security
+
+- Files changed:
+  - package.json, package-lock.json (added supabase dependency)
+  - .gitignore (added .env files)
+  - .env.example (new - Supabase config template)
+  - src/lib/supabase.ts (new - Supabase client)
+  - src/types/database.ts (new - placeholder Database type)
+
+- **Learnings for future iterations:**
+  - Supabase client accepts a generic Database type for full TypeScript support
+  - Use `import.meta.env.VITE_*` for Vite environment variables
+  - Always validate env vars exist at runtime with meaningful error messages
+  - The Database type will be expanded in US-011 with full schema
+---
+
+## 2026-01-23 - US-003
+- What was implemented:
+  - Created SQL migration file for profiles table at `supabase/migrations/20260123000001_create_profiles_table.sql`
+  - Fields: id (uuid PK), user_id (uuid FK to auth.users, unique), display_name (varchar 50), avatar_url (text nullable), created_at, updated_at
+  - Enabled RLS on profiles table
+  - Added RLS policies: users can only read/update/insert their own profile
+  - Added trigger `on_auth_user_created` to create profile on auth.users insert
+  - Added `update_updated_at_column` function and trigger for automatic updated_at maintenance
+  - Added documentation comments on table and columns
+
+- Files changed:
+  - supabase/migrations/20260123000001_create_profiles_table.sql (new)
+
+- **Learnings for future iterations:**
+  - Supabase migrations go in `supabase/migrations/` folder with timestamp prefix
+  - Use `SECURITY DEFINER` on trigger functions that need to access auth.users
+  - Extract display_name from email with `split_part(email, '@', 1)` as fallback
+  - Include INSERT policy for RLS when using triggers that insert data
+  - The `update_updated_at_column()` function is reusable for other tables
+---
+
+## 2026-01-23 - US-004
+- What was implemented:
+  - Created SQL migration file for user_settings table at `supabase/migrations/20260123000002_create_user_settings_table.sql`
+  - Fields: id (uuid PK), user_id (uuid FK unique), reminder_enabled (bool default true), reminder_threshold_days (int default 90), expiration_reminder_days (int default 7), push_notifications_enabled (bool default false), default_view (varchar 20 default 'gallery'), created_at, updated_at
+  - Enabled RLS on user_settings table
+  - Added RLS policies: users can only read/update/insert their own settings
+  - Added trigger `on_profile_created` to create user_settings when profile is inserted
+  - Reused `update_updated_at_column` function from profiles migration for updated_at trigger
+  - Added documentation comments on table and columns
+
+- Files changed:
+  - supabase/migrations/20260123000002_create_user_settings_table.sql (new)
+
+- **Learnings for future iterations:**
+  - The user_settings trigger listens to profiles table insert, not auth.users directly - this ensures proper chain: auth.users -> profiles -> user_settings
+  - Reference user_id from NEW.user_id when trigger is on profiles table (not NEW.id)
+  - The `update_updated_at_column()` function created in US-003 is shared across all tables
+---
+
+## 2026-01-23 - US-005
+- What was implemented:
+  - Created SQL migration file for categories table at `supabase/migrations/20260123000003_create_categories_table.sql`
+  - Fields: id (uuid PK), user_id (uuid FK nullable), name (varchar 50), icon (varchar 10 default box emoji), color (varchar 7 default gray), is_system (bool default false), sort_order (int default 0), created_at
+  - Enabled RLS on categories table
+  - Added RLS policies: system categories readable by all authenticated users, user categories only by owner
+  - Added separate policies for SELECT, INSERT, UPDATE, DELETE on user categories
+  - Inserted 10 system preset categories: Clothing, Food & Beverage, Electronics, Kitchen, Sports & Fitness, Tools, Books & Documents, Personal Care, Home Decor, Other
+  - Each system category has unique icon, color, and sort_order
+
+- Files changed:
+  - supabase/migrations/20260123000003_create_categories_table.sql (new)
+
+- **Learnings for future iterations:**
+  - System categories have user_id = NULL and is_system = true
+  - User categories have user_id set and is_system = false
+  - RLS policies need to check is_system flag to prevent users from modifying system categories
+  - Categories table doesn't need updated_at since category changes are rare
+---
+
+## 2026-01-23 - US-006
+- What was implemented:
+  - Created SQL migration file for locations table at `supabase/migrations/20260123000004_create_locations_table.sql`
+  - Fields: id (uuid PK), user_id (uuid FK), name (varchar 100), parent_id (uuid FK self-ref nullable), path (text), depth (int default 1), icon (varchar 10 default pin emoji), photo_url (text nullable), item_count (int default 0), created_at, updated_at, deleted_at (nullable)
+  - Enabled RLS on locations table with user-only access policies
+  - Added separate policies for SELECT, INSERT, UPDATE, DELETE operations
+  - SELECT policy filters out soft-deleted locations (deleted_at IS NULL)
+  - Added indexes on user_id, parent_id, and deleted_at columns
+  - Reused `update_updated_at_column` function from profiles migration for updated_at trigger
+  - Created `update_location_path` function and trigger to auto-maintain path and depth fields
+  - Added comprehensive documentation comments on table and columns
+
+- Files changed:
+  - supabase/migrations/20260123000004_create_locations_table.sql (new)
+
+- **Learnings for future iterations:**
+  - Locations table uses self-referential FK (parent_id references locations.id) for hierarchy
+  - ON DELETE SET NULL for parent_id allows graceful handling when parent location is deleted
+  - The path field is auto-maintained by trigger using format "Parent > Child > Grandchild"
+  - The depth field is auto-calculated (1 for root, increments per level)
+  - item_count will be maintained by triggers on the items table (US-009)
+  - Soft delete pattern: deleted_at is nullable, SELECT policy filters out non-null deleted_at
+---
+
+## 2026-01-23 - US-007
+- What was implemented:
+  - Created SQL migration file for items table at `supabase/migrations/20260123000005_create_items_table.sql`
+  - Fields: id (uuid PK), user_id (uuid FK), photo_url (text NOT NULL), thumbnail_url (text nullable), name (varchar 200 nullable), description (text nullable), category_id (uuid FK nullable), tags (text[] default {}), location_id (uuid FK nullable), quantity (int default 1 with check 1-999), price (decimal 10,2 nullable), currency (varchar 3 default CNY), purchase_date (date nullable), expiration_date (date nullable), brand (varchar 100 nullable), model (varchar 100 nullable), notes (text nullable), is_favorite (bool default false), keep_forever (bool default false), ai_metadata (jsonb nullable), last_viewed_at (timestamptz nullable), created_at, updated_at, deleted_at (nullable)
+  - Enabled RLS on items table with user-only access policies
+  - Added separate policies for SELECT, INSERT, UPDATE, DELETE operations
+  - SELECT policy filters out soft-deleted items (deleted_at IS NULL)
+  - Added indexes on user_id, category_id, location_id, deleted_at columns
+  - Reused `update_updated_at_column` function from profiles migration for updated_at trigger
+  - Added comprehensive documentation comments on table and columns
+
+- Files changed:
+  - supabase/migrations/20260123000005_create_items_table.sql (new)
+
+- **Learnings for future iterations:**
+  - Items table uses ON DELETE SET NULL for category_id and location_id to allow graceful handling when category/location is deleted
+  - The tags field uses PostgreSQL array type (text[]) with default empty array '{}'
+  - Added CHECK constraint on quantity (1-999) for data validation
+  - The ai_metadata field is JSONB for storing AI analysis results flexibly
+  - keep_forever=true excludes items from unused item reminders
+  - The location.item_count field will be maintained by triggers in US-009
+---
+
+## 2026-01-23 - US-008
+- What was implemented:
+  - Created SQL migration file for notifications table at `supabase/migrations/20260123000006_create_notifications_table.sql`
+  - Fields: id (uuid PK), user_id (uuid FK), type (varchar 30 with CHECK constraint: unused_item, expiring_item, system), title (varchar 200 NOT NULL), body (text), item_id (uuid FK nullable), is_read (bool default false), is_pushed (bool default false), pushed_at (timestamptz nullable), created_at
+  - Enabled RLS on notifications table with user-only access policies
+  - Added separate policies for SELECT, INSERT, UPDATE, DELETE operations
+  - Added indexes on user_id, is_read, and composite (user_id, is_read) for query performance
+  - Used ON DELETE CASCADE for item_id FK (notifications deleted when item is deleted)
+  - Added comprehensive documentation comments on table and columns
+
+- Files changed:
+  - supabase/migrations/20260123000006_create_notifications_table.sql (new)
+
+- **Learnings for future iterations:**
+  - Notifications table uses CHECK constraint for type enum rather than PostgreSQL ENUM type (simpler migrations)
+  - ON DELETE CASCADE for item_id ensures notifications are cleaned up when items are deleted
+  - Composite index on (user_id, is_read) optimizes common query pattern for unread notification counts
+  - No updated_at column needed since notifications are typically write-once (only is_read changes)
+---
+
+## 2026-01-23 - US-009
+- What was implemented:
+  - Created SQL migration file for location item_count trigger at `supabase/migrations/20260123000007_create_location_item_count_trigger.sql`
+  - Created `update_location_item_count()` function to handle all item count changes
+  - Handles INSERT: increment new location's count if location_id is set and item is not soft-deleted
+  - Handles DELETE (hard delete): decrement location's count if location_id was set
+  - Handles UPDATE with soft-delete: decrement count when deleted_at changes from NULL to a value
+  - Handles UPDATE with restore: increment count when deleted_at changes from a value to NULL
+  - Handles UPDATE location_id change: decrement old location, increment new location
+  - All operations use GREATEST(item_count - 1, 0) to prevent negative counts
+  - Trigger fires AFTER INSERT OR UPDATE OR DELETE for each row
+
+- Files changed:
+  - supabase/migrations/20260123000007_create_location_item_count_trigger.sql (new)
+
+- **Learnings for future iterations:**
+  - Use AFTER trigger (not BEFORE) when updating related tables since it fires after the main operation completes
+  - Use `IS DISTINCT FROM` for null-safe comparison of location_id changes
+  - Use GREATEST(item_count - 1, 0) to prevent negative item counts (defensive programming)
+  - Need to check both location_id and deleted_at status when calculating whether to update counts
+  - The trigger handles restore from soft-delete (deleted_at NULL -> value -> NULL cycle)
+---
+
+## 2026-01-23 - US-010
+- What was implemented:
+  - Created SQL migration file at `supabase/migrations/20260123000008_add_pgvector_embedding.sql`
+  - Enabled pgvector extension with `CREATE EXTENSION IF NOT EXISTS vector`
+  - Added embedding column to items table: vector(1536) nullable for OpenAI text-embedding-3-small compatibility
+  - Created HNSW index on embedding column using vector_cosine_ops for cosine similarity
+  - Created `search_items_by_embedding()` function (SECURITY DEFINER) for server-side similarity search with explicit user_id parameter
+  - Created `search_similar_items()` function (SECURITY INVOKER) for client-side use that respects RLS via auth.uid()
+  - Both functions support configurable match_threshold and match_count parameters
+
+- Files changed:
+  - supabase/migrations/20260123000008_add_pgvector_embedding.sql (new)
+
+- **Learnings for future iterations:**
+  - pgvector extension is pre-installed in Supabase but needs to be explicitly enabled
+  - HNSW (Hierarchical Navigable Small World) index is preferred over IVFFlat for better query performance without training
+  - Use `<=>` operator for cosine distance in pgvector (returns distance, so similarity = 1 - distance)
+  - SECURITY DEFINER functions bypass RLS - use explicit user_id parameter for server-side calls
+  - SECURITY INVOKER functions respect RLS - use auth.uid() for client-side calls
+  - HNSW parameters: m=16 (connections per layer), ef_construction=64 (construction quality) are good defaults
+---
+
+## 2026-01-23 - US-011
+- What was implemented:
+  - Updated /src/types/database.ts with comprehensive TypeScript interfaces matching database schema:
+    - Profile: User profile extending auth.users
+    - UserSettings: User personalization preferences with default_view union type
+    - Category: Category with nullable user_id for system vs user categories
+    - Location: Storage location with hierarchical support (parent_id, path, depth)
+    - Item: Core inventory item with tags array, ai_metadata JSONB, and pgvector embedding
+    - Notification: User notification with NotificationType union type
+    - ItemAIMetadata: Flexible JSON interface for AI analysis results
+  - Created Supabase Database type definition with Row, Insert, Update types for each table
+  - Added Functions type definitions for search_similar_items and search_items_by_embedding
+  - Added utility types: TableRow, TableInsert, TableUpdate for type extraction
+  - Created /src/types/api.ts with comprehensive request/response types:
+    - Generic API types (ApiResponse, ApiError, PaginatedResponse)
+    - Auth request/response types
+    - CRUD types for all entities (Create, Update, Response types)
+    - AI analysis types (DetectedItem, AnalyzeImageResponse, ShoppingAnalyzeResponse)
+    - Dashboard and search types
+  - Created /src/types/index.ts as central export point for all types
+
+- Files changed:
+  - src/types/database.ts (updated with full schema types)
+  - src/types/api.ts (new)
+  - src/types/index.ts (new)
+
+- **Learnings for future iterations:**
+  - Use union types for constrained string fields like `default_view: 'gallery' | 'list'`
+  - pgvector embedding is typed as `number[] | null` since TypeScript doesn't have a native vector type
+  - ItemAIMetadata uses index signature `[key: string]: unknown` for flexible AI response storage
+  - Supabase Database type uses Row/Insert/Update pattern for table type definitions
+  - Insert types make auto-generated fields optional (id, created_at, etc.)
+  - Update types use Partial and exclude fields that shouldn't be updated (id, user_id, etc.)
+---
+
+## 2026-01-23 - US-012
+- What was implemented:
+  - Created SQL migration file at `supabase/migrations/20260123000009_create_items_storage_bucket.sql`
+  - Created 'items' storage bucket with INSERT INTO storage.buckets
+  - Configured file_size_limit to 10MB (10485760 bytes)
+  - Configured allowed_mime_types: image/jpeg, image/png, image/webp, image/heic
+  - Created RLS policies for storage.objects table:
+    - INSERT policy: Users can upload to items/{user_id}/* folder only
+    - SELECT policy: Users can read/download their own files only
+    - UPDATE policy: Users can update their own files only
+    - DELETE policy: Users can delete their own files only
+  - Used storage.foldername(name)[1] to extract user_id from file path for RLS checks
+
+- Files changed:
+  - supabase/migrations/20260123000009_create_items_storage_bucket.sql (new)
+
+- **Learnings for future iterations:**
+  - Supabase storage buckets are managed via storage.buckets table (INSERT/UPDATE)
+  - Use ON CONFLICT DO UPDATE to make migration idempotent for bucket settings
+  - RLS policies on storage.objects control file access, using storage.foldername() helper
+  - storage.foldername(name) returns array of folder path segments, [1] gets first folder (user_id)
+  - File path structure: bucket/{user_id}/{filename} - user_id is extracted for RLS
+  - bucket_id field in storage.objects identifies which bucket the file belongs to
+---
+
+## 2026-01-23 - US-013
+- What was implemented:
+  - Created /src/contexts/AuthContext.tsx with AuthProvider component
+  - Created /src/contexts/authContext.ts with AuthContext (separated for Fast Refresh compatibility)
+  - Created /src/hooks/useAuth.ts hook to consume AuthContext
+  - Created /src/types/auth.ts with AuthContextValue interface
+  - AuthProvider provides: user, session, loading, signUp, signIn, signOut, resetPassword, updatePassword
+  - Listens to supabase.auth.onAuthStateChange for session updates
+  - Handles token expiry (SIGNED_OUT event) and token refresh (TOKEN_REFRESHED event)
+  - Configured path aliases (`@/`) in vite.config.ts and tsconfig.app.json
+
+- Files changed:
+  - src/contexts/AuthContext.tsx (new - AuthProvider component)
+  - src/contexts/authContext.ts (new - AuthContext instance)
+  - src/hooks/useAuth.ts (new - useAuth hook)
+  - src/types/auth.ts (new - AuthContextValue type)
+  - src/types/index.ts (added AuthContextValue export)
+  - src/lib/supabase.ts (updated to use @/ path alias)
+  - vite.config.ts (added path alias configuration)
+  - tsconfig.app.json (added path alias configuration)
+
+- **Learnings for future iterations:**
+  - React Fast Refresh plugin requires component-only exports in .tsx files
+  - Separate context instance (createContext) from provider component for ESLint compliance
+  - Use @/ path alias for cleaner imports (configured in both vite.config.ts and tsconfig.app.json)
+  - supabase.auth.onAuthStateChange provides events: SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.
+  - Always use useCallback for context methods to prevent unnecessary re-renders
+  - useMemo for context value prevents child re-renders when state hasn't changed
+---
+
+## 2026-01-23 - US-014
+- What was implemented:
+  - Created /src/components/ProtectedRoute.tsx wrapper component
+  - Check authentication status from AuthContext via useAuth hook
+  - Redirects unauthenticated users to /login with redirect param preserving original path
+  - Shows animated loading spinner while checking auth status
+  - Renders children when user is authenticated
+  - Uses encodeURIComponent for safe redirect URL encoding
+
+- Files changed:
+  - src/components/ProtectedRoute.tsx (new)
+
+- **Learnings for future iterations:**
+  - Use `useLocation()` from react-router-dom to get current pathname and search params
+  - Preserve original path with `encodeURIComponent(location.pathname + location.search)` for post-login redirect
+  - Use `<Navigate to={...} replace />` to redirect without adding to browser history
+  - The loading state from useAuth is true until initial session check completes
+  - Use `<>{children}</>` to render children without extra wrapper element
+---
+
+## 2026-01-23 - US-015
+- What was implemented:
+  - Created /src/components/layout/AppShell.tsx with header area and bottom nav integration
+  - Created /src/components/layout/BottomNav.tsx with 4 tabs: Home, Add (center FAB), Inventory, Settings
+  - Bottom nav is fixed at bottom, 56px height (h-14), white background with top border
+  - Active tab highlighted with blue-600 primary color, icon filled and text bold
+  - Center Add button is larger/prominent FAB style with blue-600 background
+  - Tabs navigate to: /dashboard, /add, /inventory, /settings
+  - Created layout index.ts for clean exports
+  - Updated App.tsx to use AppShell and added placeholder pages for each route
+  - Renamed context files to avoid macOS case-sensitivity issues (AuthContext.tsx -> AuthProvider.tsx, authContext.ts -> auth-context.ts)
+  - Created /src/contexts/index.ts for clean context exports
+
+- Files changed:
+  - src/components/layout/AppShell.tsx (new)
+  - src/components/layout/BottomNav.tsx (new)
+  - src/components/layout/index.ts (new)
+  - src/contexts/AuthProvider.tsx (renamed from AuthContext.tsx)
+  - src/contexts/auth-context.ts (renamed from authContext.ts)
+  - src/contexts/index.ts (new)
+  - src/App.tsx (updated - added AppShell, placeholder pages, routes)
+  - src/hooks/useAuth.ts (updated import path)
+
+- **Learnings for future iterations:**
+  - On macOS (case-insensitive file system), avoid files with same name different case (e.g., authContext.ts vs AuthContext.tsx)
+  - Use dash-separated naming for consistency (auth-context.ts) when splitting context and provider
+  - Create index.ts files for directories to provide clean exports
+  - BottomNav uses NavLink from react-router-dom with active state detection via useLocation
+  - FAB style center button uses negative margin (-mt-5) to extend above the nav bar
+  - AppShell adds pb-14 (padding-bottom 56px) to content to account for fixed bottom nav
+---
+
+## 2026-01-23 - US-016
+- What was implemented:
+  - Created /src/pages/SignupPage.tsx at route /signup with full registration form
+  - Email input with real-time validation (email format check using regex)
+  - Password input with validation (minimum 8 characters)
+  - Confirm password input with validation (must match password)
+  - Inline validation errors shown below each field on blur
+  - Create Account button disabled until all validations pass
+  - Footer link: "Already have an account? Log in" -> /login
+  - Created /src/pages/index.ts barrel export for pages
+  - Updated App.tsx to add /signup route outside AppShell (no bottom nav for auth pages)
+
+- Files changed:
+  - src/pages/SignupPage.tsx (new)
+  - src/pages/index.ts (new)
+  - src/App.tsx (updated - restructured routes to separate auth from protected routes)
+
+- **Learnings for future iterations:**
+  - Auth pages (/signup, /login, etc.) should be outside AppShell since they don't need bottom navigation
+  - Use nested Routes for grouping protected routes inside AppShell wrapper
+  - Form validation pattern: use `touched` state to track which fields have been visited, only show errors for touched fields
+  - Use `useMemo` for computing validation errors to avoid recalculating on every render
+  - Email validation regex: `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` covers most common cases
+  - Button disabled state: combine isFormValid check with Tailwind conditional classes
+---
+
+## 2026-01-23 - US-017
+- What was implemented:
+  - Connected SignupPage form to AuthContext signUp function using useAuth hook
+  - Added isSubmitting state to track form submission in progress
+  - Button shows loading spinner (SVG animated) during submission with "Creating Account..." text
+  - Form inputs are disabled during submission to prevent double-submit
+  - On success: auto-login via Supabase, navigate to /dashboard with replace
+  - On email exists error: show inline error "This email is already registered" with "Log in" link
+  - On network error: show toast notification "Network connection failed"
+  - On other errors: show toast notification "Registration failed. Please try again later"
+  - Created /src/components/Toast.tsx - simple toast notification component (to be expanded in US-083)
+
+- Files changed:
+  - src/pages/SignupPage.tsx (updated - added form submission, loading state, error handling)
+  - src/components/Toast.tsx (new - simple toast component)
+
+- **Learnings for future iterations:**
+  - Supabase error messages can be checked with .includes() for specific error types (e.g., 'user already registered')
+  - Use try/catch to handle unexpected errors like network failures
+  - Form inputs should be disabled during submission to prevent double-submit
+  - Toast component positioned at bottom-20 to account for BottomNav (h-14 = 56px)
+  - Loading spinner uses Tailwind animate-spin class with SVG circle and path
+---
+
+## 2026-01-23 - US-018
+- What was implemented:
+  - Created /src/pages/LoginPage.tsx at route /login with login form UI
+  - Email input with real-time validation (email format check)
+  - Password input with "Forgot password?" link to /reset-password
+  - Log in button with loading state (spinner + "Logging in..." text during submission)
+  - Form inputs disabled during submission to prevent double-submit
+  - Footer link: "Don't have an account? Sign up" -> /signup
+  - Updated /src/pages/index.ts to export LoginPage
+  - Updated App.tsx to add /login route outside AppShell (no bottom nav for auth pages)
+
+- Files changed:
+  - src/pages/LoginPage.tsx (new)
+  - src/pages/index.ts (updated - added LoginPage export)
+  - src/App.tsx (updated - added /login route)
+
+- **Learnings for future iterations:**
+  - Login form is simpler than signup - only email and password fields (no confirm password)
+  - "Forgot password?" link positioned inline with password label using flexbox justify-between
+  - Form submission logic placeholder added (actual API call to be implemented in US-019)
+  - Consistent UI patterns with SignupPage: same input styling, button states, layout structure
+---
+
+## 2026-01-23 - US-019
+- What was implemented:
+  - Connected LoginPage form to AuthContext signIn function via useAuth hook
+  - Added redirect handling for successful login using useNavigate
+  - On success: redirect to /dashboard or ?redirect= param if present (using decodeURIComponent)
+  - On invalid credentials: show inline error "Invalid email or password" with red background box
+  - On email not confirmed: show "Please verify your email address before logging in"
+  - On network error: show toast notification "Network connection failed"
+  - Added useEffect to redirect authenticated users visiting /login to /dashboard
+  - Added loginError state for inline credential errors, toast state for network errors
+
+- Files changed:
+  - src/pages/LoginPage.tsx (updated - added signIn integration, error handling, redirect logic)
+
+- **Learnings for future iterations:**
+  - Supabase auth error message for invalid credentials is "Invalid login credentials" (case-insensitive check)
+  - Use useSearchParams() from react-router-dom to read query params like ?redirect=
+  - decodeURIComponent() should be used when reading redirect param since it was encoded during redirect
+  - Separate inline error display (loginError state) from toast notifications (toast state) for better UX
+  - The useEffect handles both initial load redirect and post-login redirect (when user state changes)
+---
+
+## 2026-01-23 - US-020
+- What was implemented:
+  - Created /src/pages/SettingsPage.tsx at route /settings
+  - Added red Log out button fixed at bottom of settings page (above BottomNav)
+  - Created inline confirmation dialog with "Log out?" heading and "Are you sure you want to log out?" text
+  - Connected to AuthContext signOut function via useAuth hook
+  - On confirm: calls signOut, shows "Logged out successfully" toast, redirects to /login
+  - Shows loading state during logout with spinner animation
+  - Dialog has backdrop that closes on click, and both Cancel and Log out buttons
+  - Updated pages index.ts to export SettingsPage
+  - Removed placeholder SettingsPage from App.tsx and imported from pages
+
+- Files changed:
+  - src/pages/SettingsPage.tsx (new)
+  - src/pages/index.ts (updated - added SettingsPage export)
+  - src/App.tsx (updated - removed placeholder, imported SettingsPage from pages)
+
+- **Learnings for future iterations:**
+  - Logout button positioned fixed at bottom-20 (above BottomNav h-14) with px-4 for padding
+  - Confirmation dialogs use fixed inset-0 z-50 with backdrop (bg-black/50) and centered card
+  - Use setTimeout before navigate to allow user to see success toast briefly
+  - Dialog buttons should be disabled during async operation to prevent double-click
+  - Use animate-in classes for dialog entry animations (zoom-in, fade-in)
+---
+
+## 2026-01-23 - US-021
+- What was implemented:
+  - Created /src/pages/ResetPasswordPage.tsx at route /reset-password
+  - Form with email input and "Send Reset Email" button
+  - Helper text explaining the password reset process
+  - Email validation with real-time error display
+  - On submit: calls AuthContext resetPassword (which calls supabase.auth.resetPasswordForEmail)
+  - Always shows success view after submission (security: doesn't reveal if email exists)
+  - Success view shows masked email (e.g., te***@example.com)
+  - Resend button with 60-second cooldown timer that counts down
+  - Tips section for users who don't receive the email
+  - Network error handling with toast notification
+  - Navigation links: "Remember your password? Log in" and "Back to Log in"
+  - Updated pages index.ts to export ResetPasswordPage
+  - Updated App.tsx to add /reset-password route outside AppShell
+
+- Files changed:
+  - src/pages/ResetPasswordPage.tsx (new)
+  - src/pages/index.ts (updated - added ResetPasswordPage export)
+  - src/App.tsx (updated - added /reset-password route)
+
+- **Learnings for future iterations:**
+  - Password reset should always show success message for security (don't reveal if email exists)
+  - Use useEffect with setInterval for countdown timers, clean up with clearInterval
+  - Mask email for display: show first 2 chars of local part + "***" + "@" + domain
+  - The resetPassword function in AuthContext includes redirectTo parameter pointing to /reset-password/confirm
+  - Cooldown pattern: track remaining seconds in state, disable button when > 0
+---
+
+## 2026-01-23 - US-022
+- What was implemented:
+  - Created /src/pages/ResetPasswordConfirmPage.tsx at route /reset-password/confirm
+  - Form with new password and confirm password inputs
+  - Password validation: minimum 8 characters, passwords must match
+  - Token validation using Supabase auth session check via onAuthStateChange
+  - Three states: loading (verifying token), invalid (expired/bad token), valid (show form)
+  - On success: signs out user, redirects to /login with location state for success toast
+  - On expired/invalid token: shows error view with "Request New Link" and "Back to Log in" buttons
+  - Updated LoginPage to show "Password reset successfully" toast when redirected from password reset
+  - Used useState initializer function to set initial toast state from location state (avoids lint error)
+  - Updated pages index.ts to export ResetPasswordConfirmPage
+  - Added route for /reset-password/confirm in App.tsx outside AppShell (no bottom nav)
+
+- Files changed:
+  - src/pages/ResetPasswordConfirmPage.tsx (new)
+  - src/pages/LoginPage.tsx (updated - added success toast for password reset redirect)
+  - src/pages/index.ts (updated - added ResetPasswordConfirmPage export)
+  - src/App.tsx (updated - added /reset-password/confirm route)
+
+- **Learnings for future iterations:**
+  - Supabase handles password recovery tokens via URL hash automatically
+  - Use onAuthStateChange to listen for PASSWORD_RECOVERY event when Supabase processes reset link
+  - After updatePassword(), sign out the user and redirect to login for fresh session
+  - Use location.state to pass data between routes (e.g., success message from password reset)
+  - Use useState initializer function `useState(() => computeInitialValue())` to set initial state from props/context to avoid setState-in-effect lint error
+  - Use window.history.replaceState({}, document.title) to clear location state without triggering navigation
+---
+
+## 2026-01-23 - US-023
+- What was implemented:
+  - Created /src/lib/imageUtils.ts with comprehensive image utility functions
+  - Function validateImage: validates images for supported formats (JPEG, PNG, WebP, HEIC) and minimum dimensions (200x200)
+  - Function compressImage: resizes and compresses images to max 2MB, adjusts quality iteratively
+  - Function convertHeicToJpeg: converts HEIC/HEIF files to JPEG using heic2any library
+  - Function generateThumbnail: creates 200x200 center-cropped square thumbnails
+  - Function uploadToStorage: uploads to Supabase storage at items/{user_id}/{uuid}.jpg path, returns URL
+  - Function processAndUploadImage: convenience function combining validate, compress, thumbnail, and upload
+  - Added helper functions: getImageDimensions, loadImage, resizeImage, generateFilename, deleteFromStorage
+  - Installed heic2any library for HEIC conversion
+  - Created type declaration file for heic2any at /src/types/heic2any.d.ts
+
+- Files changed:
+  - package.json (added heic2any dependency)
+  - package-lock.json (dependency lock file)
+  - src/lib/imageUtils.ts (new - image utility functions)
+  - src/types/heic2any.d.ts (new - TypeScript declaration for heic2any)
+
+- **Learnings for future iterations:**
+  - heic2any library doesn't have bundled TypeScript types, need to create custom .d.ts declaration
+  - HEIC files may not have correct MIME type set, also check filename extension
+  - Canvas-based image compression works by reducing dimensions and JPEG quality iteratively
+  - Use crypto.randomUUID() for generating unique filenames (browser built-in)
+  - Center-crop for thumbnails: calculate square crop from center of original image
+  - heic2any returns Blob or Blob[] (for multi-frame images), handle array case
+  - Use Promise-based wrappers for canvas.toBlob() and image loading for async/await compatibility
+---
+
+## 2026-01-23 - US-024
+- What was implemented:
+  - Created /src/pages/AddItemPage.tsx at route /add
+  - Page title "Add Item" at the top
+  - Two action cards: Take Photo (camera icon) and Choose from Gallery (image icon)
+  - Helper text: "Take a photo of your item and AI will help identify it"
+  - Take Photo triggers hidden input with capture="environment" for rear camera
+  - Choose from Gallery triggers hidden file input accepting image/*
+  - Camera permission handling with toast notification fallback
+  - Image validation using existing validateImage utility from imageUtils
+  - Processing indicator while validating images
+  - Tips section for best photo results
+  - Toast notifications for errors
+  - Updated pages/index.ts to export AddItemPage
+  - Removed placeholder AddItemPage from App.tsx
+
+- Files changed:
+  - src/pages/AddItemPage.tsx (new)
+  - src/pages/index.ts (updated - added AddItemPage export)
+  - src/App.tsx (updated - removed placeholder, imported from @/pages)
+
+- **Learnings for future iterations:**
+  - Use useRef for hidden file inputs and trigger with .click()
+  - capture="environment" attribute requests rear camera on mobile devices
+  - Reset input.value after file selection to allow selecting the same file again
+  - Check navigator.mediaDevices existence before attempting camera access
+  - The AddItemPage will navigate to preview step (US-025) after image validation
+---
+
+## 2026-01-23 - US-025
+- What was implemented:
+  - Added full-screen photo preview step to AddItemPage after image capture/selection
+  - Implemented pinch-to-zoom support with touch events for mobile devices
+  - Added double-tap gesture to toggle between 100% and 200% zoom
+  - Zoom indicator shows current zoom percentage when zoomed in
+  - Bottom action buttons: Retake/Reselect (left) and Continue (right, primary)
+  - Button shows "Retake" when image was from camera, "Reselect" when from gallery
+  - Retake/Reselect returns to capture options, cleaning up preview URL
+  - Continue button ready for AI analysis integration (US-027)
+  - Validates image before showing preview (uses existing validateImage utility)
+  - Shows error toast for invalid images
+  - Helper text shows "Pinch to zoom • Double-tap to reset" instructions
+  - Clean URL.createObjectURL/revokeObjectURL lifecycle management
+
+- Files changed:
+  - src/pages/AddItemPage.tsx (updated - added preview view with pinch-to-zoom)
+
+- **Learnings for future iterations:**
+  - Use React.TouchEvent handlers for pinch-to-zoom: onTouchStart, onTouchMove, onTouchEnd
+  - Calculate distance between two touch points with Math.hypot()
+  - Use refs for mutable values that don't trigger re-renders (lastTouchDistanceRef, lastTapRef)
+  - CSS `touch-none` class prevents default browser gestures on the preview container
+  - Transform with translate inside scale needs to divide by scale for correct positioning
+  - Clean up URL.createObjectURL with URL.revokeObjectURL to prevent memory leaks
+  - Use useCallback for touch handlers to prevent unnecessary re-renders
+  - Track isFromCamera state to show appropriate button label (Retake vs Reselect)
+---
+
+## 2026-01-23 - US-026
+- What was implemented:
+  - Created Supabase Edge Function: analyze-image at `supabase/functions/analyze-image/index.ts`
+  - Created shared CORS headers at `supabase/functions/_shared/cors.ts`
+  - Accepts image URL in request body via POST
+  - Calls OpenAI GPT-4o Vision API with detailed prompt for item detection
+  - Extracts: item name(s), category suggestion (from predefined system categories), tags, brand (if visible), confidence score
+  - Returns JSON with detected_items array, analysis_model, and analyzed_at timestamp
+  - Handles API errors gracefully with appropriate error codes (CONFIGURATION_ERROR, UNAUTHORIZED, INVALID_REQUEST, INTERNAL_ERROR)
+  - Secures function with auth token validation using Supabase auth.getUser()
+  - Validates image_url format and required fields
+  - Uses lower temperature (0.3) for consistent results
+
+- Files changed:
+  - supabase/functions/analyze-image/index.ts (new - Edge Function)
+  - supabase/functions/_shared/cors.ts (new - shared CORS headers)
+
+- **Learnings for future iterations:**
+  - Supabase Edge Functions use Deno runtime with esm.sh imports
+  - Use `Deno.serve()` for the main handler (new Deno 2.0 pattern)
+  - Import Supabase client from 'https://esm.sh/@supabase/supabase-js@2'
+  - CORS headers should handle OPTIONS preflight requests first
+  - OpenAI Vision API accepts image URLs directly in the message content
+  - GPT-4o can handle JSON-only responses with proper prompting
+  - Handle potential markdown code blocks in OpenAI responses when parsing JSON
+  - Use `Deno.env.get()` to access environment variables (OPENAI_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY)
+  - Validate auth by creating Supabase client with user's token and calling auth.getUser()
+  - Category suggestions should match existing system categories for consistency
+---
+
+## 2026-01-23 - US-027
+- What was implemented:
+  - Updated AddItemPage.tsx with AI analysis loading and results UI
+  - Added new view states: 'analyzing', 'results', 'error'
+  - Created full-screen loading overlay with spinner and dynamic text
+  - Implemented 5-second text change ('Still analyzing, please wait...')
+  - Implemented 15-second timeout with Cancel and Keep Waiting buttons
+  - Added image upload to storage before calling analyze-image Edge Function
+  - On success with single item: navigates to /add/edit with pre-filled data
+  - On success with multiple items: shows selection UI (placeholder for US-028)
+  - On failure: shows error UI with "Add Manually" and "Try a Different Photo" options
+  - Added proper cleanup for uploaded images when analysis is cancelled
+  - Added abort controller for cancelling in-flight requests
+
+- Files changed:
+  - src/pages/AddItemPage.tsx (updated - added AI analysis flow)
+
+- **Learnings for future iterations:**
+  - Use AbortController for cancellable async operations (fetch, Edge Function calls)
+  - Can't use hooks inside render functions - extract state to component level
+  - Use refs (analysisTimersRef) to track setTimeout IDs for cleanup
+  - Call supabase.functions.invoke() with Authorization header for authenticated Edge Functions
+  - Navigate with state object to pass data between routes (detectedItem, imageUrl, etc.)
+  - processAndUploadImage() returns imagePath and thumbnailPath for cleanup if needed
+  - Use useCallback for derived values that depend on state (getAnalysisLoadingText)
+---
+
+## 2026-01-23 - US-028
+- What was implemented:
+  - Created /src/components/MultiItemSelection.tsx component for multi-item selection
+  - Displays original photo at top of selection UI
+  - Lists detected items with: checkbox, name, category suggestion, confidence badge (High/Medium/Low)
+  - AI sparkle indicator shows which fields are AI-detected
+  - Tags preview (first 3 tags with "+N more" overflow indicator)
+  - Brand information display when available
+  - Select All / Deselect All toggle functionality
+  - Add Selected Items button with dynamic count (disabled when none selected)
+  - Helper text "You'll edit each item one by one" when multiple items selected
+  - Item queue navigation: passes selected items to Item Editor with queue state
+  - Updated AddItemPage.tsx to use MultiItemSelection component instead of placeholder
+  - Consistent state structure for all navigation paths (single item, multi-item, manual add)
+  - Added itemQueue, totalItems, currentItemIndex to navigation state for US-035
+
+- Files changed:
+  - src/components/MultiItemSelection.tsx (new)
+  - src/pages/AddItemPage.tsx (updated - integrated MultiItemSelection component)
+
+- **Learnings for future iterations:**
+  - Use Set for tracking selected indices for O(1) lookup and efficient toggling
+  - Confidence thresholds: >=0.8 High (green), >=0.6 Medium (yellow), <0.6 Low (gray)
+  - Navigation state should include queue info (itemQueue, totalItems, currentItemIndex) for multi-item flows
+  - ImageInfo type contains all image-related data (imageUrl, thumbnailUrl, imagePath, thumbnailPath)
+  - Safe-area-pb class handles iPhone notch/safe-area padding for bottom action bar
+  - Buttons should be interactive (use <button> not <div>) for full accessibility with tab/enter
+---
+
+## 2026-01-23 - US-029
+- What was implemented:
+  - Created /src/components/ItemEditor.tsx component with basic form fields
+  - Photo thumbnail at top with tap-to-view functionality (opens full image modal)
+  - Name input with placeholder 'e.g., Blue Coffee Mug', max 200 chars, character counter
+  - Quantity stepper component with increment/decrement buttons (min 1, max 999)
+  - Description textarea with placeholder 'Add notes...', max 1000 chars, character counter
+  - AI sparkle indicator badge for AI pre-filled fields (shows "AI" pill with sparkle icon)
+  - Sparkle/AI indicator disappears when user modifies the field
+  - Progress indicator for multi-item queue (shows "Adding item X of Y" with dot progress)
+  - Full image viewer modal with tap-anywhere-to-close
+  - Created /src/pages/ItemEditorPage.tsx wrapper for routing with state handling
+  - Redirects to /add when accessed directly without state (security)
+  - Updated App.tsx to add route for /add/edit
+  - Fixed NodeJS.Timeout type to use ReturnType<typeof setTimeout> for browser compatibility
+
+- Files changed:
+  - src/components/ItemEditor.tsx (new)
+  - src/pages/ItemEditorPage.tsx (new)
+  - src/pages/index.ts (added ItemEditorPage export)
+  - src/App.tsx (added /add/edit route, imported ItemEditorPage)
+  - src/pages/AddItemPage.tsx (fixed NodeJS.Timeout type)
+
+- **Learnings for future iterations:**
+  - Use `ReturnType<typeof setTimeout>` instead of `NodeJS.Timeout` for browser TypeScript compatibility
+  - Don't re-export types that are already exported in the same file (causes TS2484)
+  - ItemEditorPage uses location.state from React Router for passing data (detectedItem, imageUrl, etc.)
+  - ItemEditor component receives form data and notifies parent via onFormChange callback
+  - AIFilledFields state tracks which fields have AI sparkle indicator
+  - QuantityStepper is a separate component with increment/decrement buttons and input field
+  - Use [appearance:textfield] and [&::-webkit-*]:appearance-none to hide number input spinners
+  - Full image viewer uses z-50 fixed positioning with tap-anywhere-to-close pattern
+---
+
+## 2026-01-23 - US-030
+- What was implemented:
+  - Created /src/hooks/useCategories.ts hook for fetching and managing categories
+  - Hook provides: categories (system + user), isLoading, error, createCategory, getSortedCategories
+  - Categories sorted: AI suggestion first (with sparkle), then user categories, then system categories
+  - Added CategorySelector component to ItemEditor with dropdown UI
+  - Dropdown shows category icon, name, AI sparkle indicator for suggested category
+  - Added 'Create new category' option at bottom of dropdown
+  - Inline create form with name input, save button, cancel button
+  - Validates category name: required, max 50 chars, no duplicate names
+  - Auto-selects newly created category after creation
+  - AI-suggested category auto-selected when categories load
+  - Sparkle/AI indicator cleared when user manually selects a different category
+  - Updated ItemEditorValues to include categoryId field
+  - Added Relationships property to Database types for Supabase compatibility
+
+- Files changed:
+  - src/hooks/useCategories.ts (new)
+  - src/components/ItemEditor.tsx (updated - added CategorySelector, categoryId state)
+  - src/types/database.ts (updated - added Relationships to all table definitions)
+  - scripts/ralph/prd.json (marked US-030 as passes: true)
+
+- **Learnings for future iterations:**
+  - useCategories hook at `/src/hooks/useCategories.ts` - use `const { categories, createCategory, getSortedCategories } = useCategories()`
+  - For Supabase Database types, add `Relationships: []` to each table definition for compatibility
+  - When using supabase.from().insert(), may need type assertion if Database types aren't fully inferred
+  - React Compiler strict mode: avoid useState in useEffect, use derived state or callback patterns instead
+  - Use stable references (extract to variables) for useMemo dependencies when accessing nested properties
+  - CategorySelector uses click-outside detection with document.addEventListener('mousedown', ...)
+  - For async category ID lookup, use derived state pattern: track `hasUserSelectedCategory` to distinguish manual vs auto selection
+---
+
+## 2026-01-23 - US-031
+- What was implemented:
+  - Created /src/hooks/useLocations.ts hook for fetching and managing user locations
+  - Hook provides: locations (flat), locationTree (hierarchical), createLocation, getLocationById, getLocationPath, getPotentialParents
+  - Created LocationNode interface extending Location with children array for tree structure
+  - buildLocationTree function converts flat locations to hierarchical tree sorted by name
+  - Created /src/components/LocationPickerModal.tsx modal component
+  - Modal shows hierarchical tree with expand/collapse chevrons
+  - Each location shows icon, name, and item count badge
+  - "No location assigned" option at top of list
+  - "Add New Location" button with inline form for creating locations
+  - Inline form includes name input and optional parent selector
+  - Added Location field to ItemEditor that opens modal on tap
+  - Shows full location path when selected (icon + path string)
+  - Updated ItemEditorValues to include locationId field
+
+- Files changed:
+  - src/hooks/useLocations.ts (new)
+  - src/components/LocationPickerModal.tsx (new)
+  - src/components/ItemEditor.tsx (updated - added location field and LocationPickerModal integration)
+
+- **Learnings for future iterations:**
+  - useLocations hook at `/src/hooks/useLocations.ts` - use `const { locations, locationTree, createLocation } = useLocations()`
+  - LocationPickerModal uses inner content component pattern - when modal is closed (!isOpen), it returns null and unmounts inner component, naturally resetting state
+  - React Compiler ESLint rules are strict: avoid setState in useEffect, avoid reading refs during render
+  - For modal state reset, unmount/remount pattern (returning null when closed) is cleaner than using keys or useEffect
+  - Hierarchical tree building: first pass creates node map, second pass links parent-child relationships
+  - Use `getPotentialParents(excludeId)` to filter out descendants when selecting parent location
+---
+
+## 2026-01-23 - US-032
+- What was implemented:
+  - Created /src/hooks/useTags.ts hook for fetching user's existing tags from items
+  - Hook provides: tags (unique sorted list), isLoading, error, refetch, getSuggestions
+  - getSuggestions filters tags based on input text and excludes already selected tags
+  - Created /src/components/TagsInput.tsx component with chip-based tag display
+  - AI-suggested tags shown with blue background and sparkle indicator
+  - User can remove tags by clicking X on each chip
+  - Type to add new tags - Enter or comma confirms the tag
+  - Autocomplete dropdown suggests from user's existing tags as you type
+  - Keyboard navigation for suggestions (ArrowUp/ArrowDown/Enter/Escape)
+  - Max 20 tags per item, max 50 chars per tag
+  - Backspace on empty input removes last tag
+  - Integrated tags field into ItemEditor with AIFilledFields tracking
+  - Updated ItemEditorValues to include tags array
+
+- Files changed:
+  - src/hooks/useTags.ts (new)
+  - src/components/TagsInput.tsx (new)
+  - src/components/ItemEditor.tsx (updated - added tags state, TagsInput integration)
+
+- **Learnings for future iterations:**
+  - useTags hook at `/src/hooks/useTags.ts` - use `const { getSuggestions, tags } = useTags()`
+  - For Supabase queries selecting specific columns like `tags`, may need type assertion for proper TypeScript inference
+  - React Compiler ESLint: use regular functions instead of useCallback when dependencies are complex or state setters are involved
+  - Using useMemo for derived values like `suggestions` and `aiTagsSet` is cleaner than useCallback for functions that access them
+  - TagsInput follows same inner component pattern as other modals for state management
+  - Comma handling: split on comma, add all parts except last (which may be partial), keep last in input
+---
+
+## 2026-01-23 - US-033
+- What was implemented:
+  - Added additional fields section to ItemEditor with expand/collapse functionality
+  - Price input with number field and currency selector dropdown (CNY default, also USD, EUR, GBP, JPY)
+  - Purchase Date picker with max constraint to today's date (cannot be future date)
+  - Expiration Date picker with warning indicator when past date is selected
+  - Brand input with max 100 chars, AI pre-fill support with sparkle indicator
+  - Model input with max 100 chars and character counter
+  - Fields are shown in collapsible "Additional Details" section
+  - Auto-expands when any additional field has a value (e.g., AI-detected brand)
+  - Updated ItemEditorValues interface to include all new fields
+
+- Files changed:
+  - src/components/ItemEditor.tsx (updated - added additional fields section with price, dates, brand, model)
+
+- **Learnings for future iterations:**
+  - Use collapsible sections for optional fields to reduce visual clutter
+  - Date input type="date" supports max attribute to prevent future dates
+  - For currency selector, use a const array with code/symbol/name for type safety
+  - Auto-expand sections when they have values from AI detection (brand in this case)
+  - Warning badges (amber color) work well for past expiration date indication
+  - Number inputs need [appearance:textfield] and webkit pseudo-element overrides to hide spinners
+---
+
+## 2026-01-23 - US-034
+- What was implemented:
+  - Added sticky Save Item button at bottom of Item Editor page
+  - Button shows loading spinner during save with "Saving..." text
+  - Button disabled during save to prevent double-submit
+  - Back button disabled during save to prevent navigation
+  - Creates item record in database with all form data
+  - Stores AI metadata (detected_name, detected_category, detected_tags, detected_brand, confidence_score)
+  - On success: shows full-screen success overlay with animated checkmark
+  - Success overlay has three action buttons: Add Another Item, View Item, Go to Inventory
+  - Auto-dismiss after 5 seconds, automatically navigate to /inventory
+  - On error: shows toast notification 'Failed to save item. Please try again.'
+  - Proper cleanup of auto-dismiss timer on component unmount
+
+- Files changed:
+  - src/pages/ItemEditorPage.tsx (updated - added save functionality, success overlay, error handling)
+
+- **Learnings for future iterations:**
+  - Use useRef for form values in save callbacks to avoid stale closure issues
+  - For CSS animations in React, use <style> tag with template literal for custom keyframes
+  - stroke-dasharray/stroke-dashoffset pattern creates checkmark drawing animation
+  - z-index [60] for success overlay to appear above the editor (z-50)
+  - Always cleanup setTimeout timers in useEffect return function
+  - ItemAIMetadata type from '@/types' for AI detection metadata storage
+---
+
+## 2026-01-23 - US-035
+- What was implemented:
+  - Added multi-item queue save flow to ItemEditorPage
+  - Added progress indicator in header showing "Adding item X of Y" with progress bar and dots
+  - Shows Cancel button in header when in queue mode (replaces spacer)
+  - Added three success types: 'single' (normal save), 'queue-continue' (more items), 'queue-complete' (all done)
+  - After saving item in queue: shows brief success overlay with "Item X saved!", loading next item...
+  - Progress dots show completed items (green), current (blue), pending (gray)
+  - Auto-proceeds to next item after 1.5 second delay
+  - After all items saved: shows summary "X Items Added!" with View Inventory button
+  - User can cancel queue at any point via Cancel button or "Stop and go to inventory" link
+  - Fixed confidence field name (confidence not confidence_score) in AI metadata
+  - Added type assertion pattern for Supabase insert to work around type inference issues
+
+- Files changed:
+  - src/pages/ItemEditorPage.tsx (updated - added queue flow, progress indicator, cancel, multiple success types)
+  - src/types/database.ts (updated - explicit items Insert type for better TypeScript compatibility)
+
+- **Learnings for future iterations:**
+  - Use SuccessType union type ('single' | 'queue-continue' | 'queue-complete') for conditional success UI
+  - DetectedItem.confidence (not confidence_score) is the correct field from API types
+  - For Supabase insert type issues, use type assertion pattern: `(supabase.from('table') as ReturnType<typeof supabase.from>).insert(data as Record<string, unknown>)`
+  - Multi-item queue state: itemQueue (remaining), totalItems (original count), currentItemIndex (1-based position)
+  - Use separate timer refs for different auto-navigation behaviors (autoDismissTimerRef, queueContinueTimerRef)
+  - Progress indicator shows visual progress with both bar (percentage) and dots (discrete items)
+---
+
+## 2026-01-23 - US-036
+- What was implemented:
+  - Created /src/pages/DashboardPage.tsx at route /dashboard
+  - Implemented time-based greeting ('Good morning/afternoon/evening') with user's display name extracted from email
+  - Added user avatar (initials fallback) that navigates to /settings on tap
+  - Created sticky search bar below header with magnifying glass icon
+  - Search bar navigates to /search on tap (placeholder for future search page)
+  - Added placeholder sections: Recent Items, Categories, Locations, Quick Stats
+  - Empty state UI for new users with 'Add your first item' link
+  - Updated pages/index.ts to export DashboardPage
+  - Removed placeholder DashboardPage from App.tsx
+
+- Files changed:
+  - src/pages/DashboardPage.tsx (new)
+  - src/pages/index.ts (updated - added DashboardPage export)
+  - src/App.tsx (updated - removed placeholder, imported from @/pages)
+
+- **Learnings for future iterations:**
+  - Time-based greeting uses `new Date().getHours()`: <12 morning, <18 afternoon, else evening
+  - User initials extracted from email: first 2 chars of local part (before @)
+  - Display name derived from email: capitalize first letter of local part
+  - Sticky header uses `sticky top-0 z-10` with white background and border
+  - useMemo for greeting prevents recalculating on every render
+  - Section headers pattern: title on left, action link on right with justify-between
+---
+
+## 2026-01-23 - US-037
+- What was implemented:
+  - Created /src/hooks/useDashboardStats.ts hook for fetching dashboard statistics
+  - Hook provides: stats (totalItems, totalLocations, expiringItems), isLoading, error, refetch
+  - Fetches all counts in parallel using Promise.all for better performance
+  - Total items: count of non-deleted items belonging to user
+  - Total locations: count of non-deleted locations belonging to user
+  - Expiring items: count of items with expiration_date within 30 days
+  - Updated DashboardPage with StatCard and StatCardSkeleton components
+  - StatCard component with icon, label, count, and click handler
+  - StatCardSkeleton with pulse animation for loading state
+  - Horizontal scrollable row of 3 stat cards: Items, Locations, Expiring
+  - Card styling: icon in colored circle, label above, count below, rounded corners, subtle shadow
+  - Click handlers navigate to /inventory with appropriate view/filter params
+
+- Files changed:
+  - src/hooks/useDashboardStats.ts (new)
+  - src/pages/DashboardPage.tsx (updated - added stat cards, skeleton loaders)
+
+- **Learnings for future iterations:**
+  - useDashboardStats hook at `/src/hooks/useDashboardStats.ts` - use `const { stats, isLoading, refetch } = useDashboardStats()`
+  - Use `{ count: 'exact', head: true }` option in Supabase select for efficient count queries
+  - Date filtering with `.lte('expiration_date', date.toISOString().split('T')[0])` for expiring items
+  - StatCard pattern: icon node, label string, count number, color classes for theming
+  - Horizontal scroll with `-mx-4 px-4` for edge-to-edge scroll but proper padding
+---
+
+## 2026-01-23 - US-038
+- What was implemented:
+  - Created /src/hooks/useExpiringItems.ts hook for fetching items expiring within specified days
+  - Hook provides: items (ExpiringItem[]), isLoading, error, refetch
+  - Added Expiring Soon section to DashboardPage below quick stats
+  - Section header with warning icon, "Expiring Soon" title, and "See All" link to /inventory?filter=expiring
+  - Shows up to 3 items expiring within 7 days, sorted by expiration date (soonest first)
+  - ExpiringItemCard component displays: thumbnail, name, expiration date, days remaining badge
+  - Badge colors: red (<=3 days or expired), orange (4-7 days)
+  - Section hidden entirely when no expiring items (conditional rendering)
+  - Skeleton loading states for cards while data loads
+  - Tap card navigates to /item/{id}
+
+- Files changed:
+  - src/hooks/useExpiringItems.ts (new)
+  - src/pages/DashboardPage.tsx (updated - added Expiring Soon section, ExpiringItemCard, skeletons)
+
+- **Learnings for future iterations:**
+  - useExpiringItems hook at `/src/hooks/useExpiringItems.ts` - use `const { items, isLoading, refetch } = useExpiringItems(days, limit)`
+  - Use `.returns<Type[]>()` method on Supabase query chain for proper TypeScript inference
+  - Calculate days remaining: Math.ceil(diffTime / (1000 * 60 * 60 * 24)) - use ceil to round up
+  - Set both dates to midnight (setHours(0,0,0,0)) for accurate day calculation
+  - Conditional section rendering: `{(loading || items.length > 0) && <section>...</section>}` to hide when empty but show skeleton while loading
+---
+
+## 2026-01-23 - US-039
+- What was implemented:
+  - Created /src/hooks/useRecentItems.ts hook for fetching recently added items
+  - Hook provides: items (RecentItem[]), isLoading, error, refetch
+  - Fetches up to 5 most recent items with category info (name, color) via join
+  - Added 'Recently Added' section to DashboardPage below Expiring Soon section
+  - Section header with clock icon, "Recently Added" title, and "See All" link to /inventory?sort=newest
+  - Horizontal scrollable row showing up to 5 recent items
+  - RecentItemCard component displays: thumbnail, name (2 lines truncate), category badge overlay, relative time
+  - Relative time formatting: 'Just now', 'X minutes ago', 'X hours ago', 'Yesterday', 'X days ago', or date for older
+  - Skeleton loading states with RecentItemCardSkeleton components
+  - Empty state shows message and "Add your first item" link
+  - Tap card navigates to /item/{id}
+
+- Files changed:
+  - src/hooks/useRecentItems.ts (new)
+  - src/pages/DashboardPage.tsx (updated - added Recently Added section, RecentItemCard, skeletons, relative time helper)
+
+- **Learnings for future iterations:**
+  - useRecentItems hook at `/src/hooks/useRecentItems.ts` - use `const { items, isLoading, refetch } = useRecentItems(limit)`
+  - Supabase join syntax for related tables: `.select('id, name, categories (name, color)')` returns nested object
+  - Use `.returns<Type[]>()` for proper TypeScript inference on complex queries with joins
+  - Relative time calculation: compare timestamps with Math.floor for seconds/minutes/hours/days
+  - Category badge overlay positioned with `absolute bottom-1.5 right-1.5` inside relative container
+  - Use `line-clamp-2` Tailwind class for 2-line text truncation
+---
+
+## 2026-01-23 - US-040
+- What was implemented:
+  - Added EmptyState component to DashboardPage for new users with 0 items
+  - EmptyState shows centered illustration (box icon in blue-50 circle)
+  - Heading: "Your inventory is empty"
+  - Subtext: "Take a photo of your first item to get started"
+  - Primary button "Add Your First Item" that navigates to /add
+  - Conditional rendering: when stats have loaded and totalItems === 0, show EmptyState
+  - Otherwise shows the regular dashboard with stats, expiring items, and recent items sections
+  - Search bar remains visible above empty state (part of sticky header)
+  - All acceptance criteria met
+
+- Files changed:
+  - src/pages/DashboardPage.tsx (added EmptyState component, isEmptyInventory logic, conditional rendering)
+
+- **Learnings for future iterations:**
+  - Empty state detection: `!statsLoading && stats.totalItems === 0` ensures we wait for data before showing empty state
+  - Use conditional rendering with ternary operator for mutually exclusive UI states (empty vs populated)
+  - Keep search bar in sticky header so it's always visible regardless of empty state
+  - EmptyState component follows centered layout pattern with illustration, heading, subtext, and CTA button
+---
+
+## 2026-01-23 - US-041
+- What was implemented:
+  - Created /src/pages/InventoryPage.tsx at route /inventory
+  - Header with 'My Inventory' title and search icon button that navigates to /search
+  - Subtitle showing item count (e.g., "5 items") with loading skeleton state
+  - useItemCount hook to fetch count of non-deleted items from database
+  - FAB (Floating Action Button) fixed at bottom-right with + icon navigating to /add
+  - FAB positioned above bottom nav (bottom-20) with blue-600 background
+  - Placeholder content area for future inventory views (grid/list)
+  - Updated pages/index.ts to export InventoryPage
+  - Updated App.tsx to import InventoryPage from @/pages and removed placeholder
+  - All acceptance criteria met
+
+- Files changed:
+  - src/pages/InventoryPage.tsx (new)
+  - src/pages/index.ts (updated - added InventoryPage export)
+  - src/App.tsx (updated - imported InventoryPage from @/pages, removed placeholder)
+
+- **Learnings for future iterations:**
+  - useItemCount hook at `/src/pages/InventoryPage.tsx` (inline) - use for fetching item count with filters
+  - FAB position: `bottom-20` places it above the 56px bottom nav (h-14)
+  - Header sticky pattern: `sticky top-0 z-10 bg-white border-b border-gray-200`
+  - Item count uses `{ count: 'exact', head: true }` for efficient count queries
+  - Grammar: `${count} item${count !== 1 ? 's' : ''}` handles singular/plural
+---
+
+## 2026-01-23 - US-042
+- What was implemented:
+  - Created /src/hooks/useUserSettings.ts hook for fetching and updating user settings
+  - Hook provides: settings (UserSettings), isLoading, error, updateSettings, refetch
+  - updateSettings saves partial settings to user_settings table
+  - Added ViewToggle component to InventoryPage header with grid and list icon buttons
+  - GridIcon and ListIcon components with filled/outline states
+  - Active view button highlighted with white background and blue-600 text
+  - Default view: Gallery (loaded from user_settings.default_view)
+  - Toggle updates view immediately without page reload
+  - View preference persisted to user_settings.default_view on toggle
+  - Used derived state pattern to avoid setState in useEffect (React Compiler compliant)
+
+- Files changed:
+  - src/hooks/useUserSettings.ts (new)
+  - src/pages/InventoryPage.tsx (updated - added view toggle, useUserSettings integration)
+
+- **Learnings for future iterations:**
+  - useUserSettings hook at `/src/hooks/useUserSettings.ts` - use `const { settings, updateSettings, isLoading } = useUserSettings()` for user preferences
+  - For Supabase update type issues, use type assertion: `(supabase.from('table') as ReturnType<typeof supabase.from>).update(data as Record<string, unknown>)`
+  - React Compiler: Avoid setState in useEffect - use derived state pattern instead: `const viewMode = userSelectedView ?? settings?.default_view ?? 'gallery'`
+  - ViewToggle component uses bg-gray-100 container with p-1, active state uses bg-white shadow-sm
+  - Filled/outline icons controlled via `filled` prop with conditional SVG path rendering
+---
+
+## 2026-01-23 - US-043
+- What was implemented:
+  - Created /src/hooks/useInventoryItems.ts hook for fetching all inventory items
+  - Hook provides: items, isLoading, isRefreshing, error, refetch, refresh
+  - Supports filtering by categoryId, locationId, showExpiringSoon
+  - Supports sorting: newest, oldest, name_asc, name_desc
+  - Created /src/components/GalleryGrid.tsx component with 2-column responsive grid
+  - ItemCard component displays: thumbnail (1:1 aspect ratio), name (2 lines truncate), category badge
+  - Category badge shows icon and name with semi-transparent background
+  - Favorite indicator (heart icon) on top-right when item is favorited
+  - Quantity badge (×N) on top-left when quantity > 1
+  - Location name shown below item name with pin icon
+  - ItemCardSkeleton for loading state with pulse animation
+  - EmptyState component for when no items exist
+  - Error state with "Try Again" button
+  - Added pull-to-refresh functionality to InventoryPage
+  - Integrated GalleryGrid into InventoryPage for gallery view mode
+  - List view shows placeholder (to be implemented in US-044)
+
+- Files changed:
+  - src/hooks/useInventoryItems.ts (new)
+  - src/components/GalleryGrid.tsx (new)
+  - src/pages/InventoryPage.tsx (updated - integrated GalleryGrid, pull-to-refresh)
+
+- **Learnings for future iterations:**
+  - useInventoryItems hook at `/src/hooks/useInventoryItems.ts` - use `const { items, isLoading, isRefreshing, refresh } = useInventoryItems(options)` for inventory with filtering
+  - GalleryGrid component at `/src/components/GalleryGrid.tsx` - use `<GalleryGrid items={items} isLoading={...} onRefresh={...} />` for 2-column item grid
+  - Pull-to-refresh uses touch events: onTouchStart, onTouchMove, onTouchEnd with rubber-band resistance effect
+  - ItemCard uses `aspect-square` class for 1:1 thumbnail ratio with `object-cover`
+  - Category badge positioned with `absolute bottom-2 left-2` on the thumbnail
+  - Use `backdrop-blur-sm` for semi-transparent overlays on images
+  - Use `line-clamp-2` for 2-line text truncation
+  - Item navigation: `navigate(/item/${id})` for item detail page
+---
+
+## 2026-01-23 - US-044
+- What was implemented:
+  - Created /src/components/ItemList.tsx component for list view
+  - ItemRow component displays: 60x60 thumbnail, name (bold), location path (gray), category badge, chevron
+  - Full-width rows with 72px height per acceptance criteria
+  - Quantity badge shown on thumbnail when quantity > 1
+  - Favorite indicator (heart) shown on thumbnail when is_favorite is true
+  - Subtle dividers between rows using divide-y divide-gray-100
+  - ItemRowSkeleton for loading state with pulse animation
+  - EmptyState component matching GalleryGrid's empty state
+  - Error state with "Try Again" button
+  - Pull-to-refresh indicator integration
+  - Updated useInventoryItems hook to fetch location.path in addition to location.name
+  - Added location_path field to InventoryItem interface
+  - Integrated ItemList into InventoryPage replacing the placeholder
+  - Tap row navigates to /item/{id}
+
+- Files changed:
+  - src/components/ItemList.tsx (new)
+  - src/hooks/useInventoryItems.ts (added location_path to InventoryItem, fetches path from locations)
+  - src/pages/InventoryPage.tsx (replaced list view placeholder with ItemList component)
+
+- **Learnings for future iterations:**
+  - ItemList component at `/src/components/ItemList.tsx` - use `<ItemList items={items} isLoading={...} onRefresh={...} />` for list view
+  - List view uses 72px row height with 60x60 thumbnails as per mobile UX best practices
+  - Location path shows full hierarchical path (e.g., "Home > Kitchen > Pantry") from locations.path field
+  - Use `divide-y divide-gray-100` class on container for subtle dividers between rows (no need for manual border-b)
+  - ItemRow uses flex layout: thumbnail (flex-shrink-0), name/location (flex-1 min-w-0), badge/chevron (flex-shrink-0)
+  - Use `min-w-0` on flex items that need truncation to work properly
+---
+
+## 2026-01-23 - US-045
+- What was implemented:
+  - Added Sort chip to filter bar in InventoryPage header, showing current sort (e.g., 'Sort: Newest')
+  - Created SortBottomSheet component for selecting sort options
+  - Bottom sheet displays all 6 sort options with current selection highlighted and checkmark
+  - Sort options: Newest First, Oldest First, Name A-Z, Name Z-A, Expiring Soon, Recently Viewed
+  - Added 'expiring' and 'viewed' sort options to useInventoryItems hook
+  - Sort by expiration date ascending (soonest first) for 'expiring' option
+  - Sort by last_viewed_at descending (most recent first) for 'viewed' option
+  - Sort persists in URL param: ?sort=newest|oldest|az|za|expiring|viewed
+  - Uses replaceState to update URL without polluting browser history
+  - Added helper functions: getSortFromUrlParam, getUrlParamFromSort, getSortLabel
+  - Added SORT_OPTIONS config array with key, label, and urlParam mappings
+  - Added last_viewed_at to InventoryItem interface and query
+
+- Files changed:
+  - src/hooks/useInventoryItems.ts (added sort options, helper functions, last_viewed_at)
+  - src/components/SortBottomSheet.tsx (new - bottom sheet component)
+  - src/pages/InventoryPage.tsx (added Sort chip, URL param handling, SortBottomSheet integration)
+
+- **Learnings for future iterations:**
+  - SortBottomSheet component at `/src/components/SortBottomSheet.tsx` - use `<SortBottomSheet isOpen={...} onClose={...} currentSort={...} onSortChange={...} />`
+  - SORT_OPTIONS array in useInventoryItems for consistent sort option configuration
+  - Use `useSearchParams` from react-router-dom for URL param handling
+  - Use `setSearchParams(params, { replace: true })` to update URL without history push
+  - Sort chip uses conditional styling: filled blue when non-default sort, outlined when default
+  - Type-only imports needed for TypeScript verbatimModuleSyntax: `import type { X } from '...'`
+---
+
+## 2026-01-23 - US-046
+- What was implemented:
+  - Added infinite scroll pagination to Inventory page
+  - Updated useInventoryItems hook with pagination support (PAGE_SIZE=20, loadMore, hasMore, totalCount, isLoadingMore)
+  - Uses Supabase range() method for offset-based pagination
+  - Added Intersection Observer to GalleryGrid and ItemList for automatic load triggering
+  - Trigger loads when user scrolls within 200px of bottom (using rootMargin: '200px')
+  - Shows loading spinner at bottom while loading more items
+  - Shows "You've seen all {n} items" message with checkmark when all items loaded
+  - Implemented scroll position preservation using sessionStorage
+  - Scroll position saved on component unmount and restored when returning from item detail
+  - Scroll position is cleared when sort/filter options change
+  - Added LoadingMoreSpinner and EndOfListMessage components to both GalleryGrid and ItemList
+
+- Files changed:
+  - src/hooks/useInventoryItems.ts (added pagination: PAGE_SIZE, loadMore, hasMore, totalCount, isLoadingMore, buildQuery helper)
+  - src/components/GalleryGrid.tsx (added Intersection Observer, LoadingMoreSpinner, EndOfListMessage)
+  - src/components/ItemList.tsx (added Intersection Observer, LoadingMoreSpinner, EndOfListMessage)
+  - src/pages/InventoryPage.tsx (integrated pagination props, added scroll restoration logic)
+
+- **Learnings for future iterations:**
+  - PAGE_SIZE constant exported from useInventoryItems for consistent pagination (20 items per page)
+  - Use Intersection Observer API with rootMargin for "load before visible" trigger (e.g., rootMargin: '200px')
+  - Use sessionStorage for scroll position preservation (survives navigation, cleared on tab close)
+  - Supabase range(offset, offset + limit - 1) is inclusive on both ends
+  - Track hasMore by comparing fetched count to totalCount to avoid extra empty fetches
+  - isLoadingMore separate from isLoading to differentiate initial load from pagination loads
+  - Use requestAnimationFrame when restoring scroll to ensure DOM has updated
+---
+
+## 2026-01-23 - US-047
+- What was implemented:
+  - Added horizontal scrollable filter bar below header in InventoryPage
+  - Added Categories chip that shows "All Categories" (inactive) or "X Categories" (active)
+  - Added Locations chip that shows "All Locations" (inactive) or "Location" (active)
+  - Kept existing Sort chip with consistent styling
+  - Inactive chip style: outlined border, gray text
+  - Active chip style: filled blue-600, white text
+  - Added Clear All link that appears on the right when any filter (categories or location) is active
+  - Clear All removes categories and location URL params, keeps sort param
+  - URL param structure: ?categories=id1,id2&location=id
+  - Placeholder bottom sheet states for US-048/US-049 implementation
+  - Used `void` expression to silence TypeScript unused variable errors for placeholder state
+
+- Files changed:
+  - src/pages/InventoryPage.tsx (updated - added filter chips, Clear All, URL param handling)
+
+- **Learnings for future iterations:**
+  - Filter bar uses `scrollbar-hide` utility class (if available) or negative margin for edge-to-edge scroll
+  - Use `void variableName` to silence TypeScript "declared but never read" errors for placeholder variables
+  - Prefix unused state variables with underscore (`_isCategorySheetOpen`) and use `void` to indicate intentional placeholder
+  - Filter chips share same styling pattern: icon + label + chevron, conditional bg-blue-600 text-white for active
+  - Clear All link uses `ml-auto flex-shrink-0` to push to right edge of scrollable container
+  - URL params for filters: `categories` (comma-separated), `location` (single ID), `sort` (sort key)
+  - Bottom sheet open states prepared for US-048 (Location filter) and US-049 (Category filter)
+---
+
+## 2026-01-23 - US-048
+- What was implemented:
+  - Created LocationFilterBottomSheet component for filtering items by location
+  - Added search input at top for filtering long lists with auto-expand of matching ancestors
+  - Implemented hierarchical tree with expand/collapse using recursive LocationTreeItem component
+  - Added item count badges to each location
+  - Added "All Locations" option at top that clears the filter
+  - Single-select with radio indicator styling
+  - Apply Filter button at bottom confirms selection
+  - Search highlighting shows matching text in yellow
+  - Empty state messages for no locations and no search results
+  - Integrated with InventoryPage - opens when Location chip clicked
+  - Location chip now shows actual location name when filter is active
+  - URL parameter `location` updated on Apply Filter
+
+- Files changed:
+  - src/components/LocationFilterBottomSheet.tsx (new - 570+ lines)
+  - src/pages/InventoryPage.tsx (updated - integrated bottom sheet, added handleLocationFilterApply, show location name in chip)
+
+- **Learnings for future iterations:**
+  - Avoid calling setState inside useEffect - use useMemo for derived state instead (lint rule: react-hooks/set-state-in-effect)
+  - For search-based auto-expansion, compute expanded IDs with useMemo and combine with manual expansions
+  - LocationFilterBottomSheet pattern: reusable for similar filter sheets (search + tree + apply)
+  - Use `highlight` function pattern for search result text highlighting
+  - Radio indicator: w-5 h-5 rounded-full border-2, filled with checkmark when selected
+  - Bottom sheet max height: max-h-[80vh] with flex column and overflow-y-auto on content area
+  - useLocations hook provides: locations, locationTree, getLocationById for location data
+---
+
+## 2026-01-23 - US-049
+- What was implemented:
+  - Created CategoryFilterBottomSheet component for multi-select category filtering
+  - Added "All Categories" checkbox at top (toggles select all/deselect all)
+  - Implemented multi-select checkboxes for category selection
+  - System categories displayed first (by sort_order), then user categories (alphabetical)
+  - Each row shows: checkbox + icon + name + item count badge
+  - Selected count indicator shows "X selected" when partially selected
+  - Indeterminate checkbox state for partial selection
+  - Apply Filter button at bottom confirms selection
+  - Created useCategoryItemCounts hook to fetch item counts per category
+  - Integrated with InventoryPage - opens when Category chip clicked
+  - URL parameter `categories` updated on Apply Filter (comma-separated IDs)
+
+- Files changed:
+  - src/components/CategoryFilterBottomSheet.tsx (new - 370+ lines)
+  - src/pages/InventoryPage.tsx (updated - integrated bottom sheet, added handleCategoryFilterApply)
+
+- **Learnings for future iterations:**
+  - CategoryFilterBottomSheet follows same pattern as LocationFilterBottomSheet for consistency
+  - Multi-select checkbox pattern: Set<string> for local state, handles toggle and toggle-all
+  - Indeterminate checkbox: show minus icon when some selected (not all, not none)
+  - Checkbox style: w-5 h-5 rounded (not rounded-full like radio)
+  - Category sorting: systemCategories by sort_order, userCategories by name (alphabetical)
+  - Empty array passed to onApplyFilter when all/none selected (clears the filter)
+  - useCategories hook provides: categories, systemCategories, userCategories arrays
+---
+
+## 2026-01-23 - US-050
+- What was implemented:
+  - Updated useInventoryItems hook to support multiple category IDs via new `categoryIds` parameter
+  - Uses Supabase `.in()` operator for filtering by multiple categories
+  - Integrated URL params with useInventoryItems in InventoryPage: passes locationId and categoryIds from URL
+  - URL format: /inventory?location={id}&categories={id1,id2}&sort={key}
+  - Location AND Categories combine with AND logic (both filters applied to query)
+  - Clear All removes categories and location params while preserving sort param
+  - Filter changes update URL using setSearchParams with { replace: true } (no history push)
+  - Item count now shows filtered totalCount from useInventoryItems instead of separate hook
+  - Removed unused useItemCount hook from InventoryPage
+  - Scroll position cleared when filters change (location, categories, sort)
+  - Fixed TypeScript type error in CategoryFilterBottomSheet by adding `.returns<>()` type assertion
+
+- Files changed:
+  - src/hooks/useInventoryItems.ts (added categoryIds support, updated buildQuery, fetchTotalCount, options tracking)
+  - src/pages/InventoryPage.tsx (integrated filters, removed useItemCount, updated count display)
+  - src/components/CategoryFilterBottomSheet.tsx (fixed TypeScript type error)
+
+- **Learnings for future iterations:**
+  - useInventoryItems now supports `categoryIds: string[]` parameter for multi-select category filtering
+  - Use Supabase `.in('column', array)` for filtering with multiple values (OR within the filter)
+  - Filters combine with AND logic: location filter AND categories filter both apply
+  - `.returns<Type>()` method on Supabase query chain provides proper TypeScript type inference for complex queries
+  - Scroll position clearing should include all filter dependencies, not just sort
+  - totalCount from useInventoryItems automatically reflects current filter state, no separate count hook needed
+---
+
+## 2026-01-23 - US-051
+- What was implemented:
+  - Added FilteredEmptyState component to GalleryGrid and ItemList for when filters are active but no results match
+  - FilteredEmptyState shows filter icon with X overlay, "No items match your filters" message, and Clear Filters button
+  - Updated EmptyState (new user) messages to match acceptance criteria: "No items yet", "Start by adding your first item", "Add First Item" button
+  - Updated error state messages to "Couldn't load your items" per acceptance criteria
+  - Added hasActiveFilters and onClearFilters props to GalleryGrid and ItemList interfaces
+  - Updated InventoryPage to pass hasAnyActiveFilter and handleClearAllFilters to both view components
+  - Empty state detection logic: filtered empty state shown when items.length === 0 AND hasActiveFilters AND onClearFilters provided
+
+- Files changed:
+  - src/components/GalleryGrid.tsx (added FilteredEmptyState, updated EmptyState, error text, props)
+  - src/components/ItemList.tsx (added FilteredEmptyState, updated EmptyState, error text, props)
+  - src/pages/InventoryPage.tsx (pass hasActiveFilters and onClearFilters to view components)
+
+- **Learnings for future iterations:**
+  - Empty state detection order matters: filtered empty state should be checked BEFORE generic empty state
+  - Both GalleryGrid and ItemList now export FilteredEmptyState for potential reuse
+  - hasAnyActiveFilter already computed in InventoryPage for "Clear All" button visibility
+  - handleClearAllFilters already exists in InventoryPage, reused for empty state's Clear Filters button
+---
+
+## 2026-01-23 - US-052
+- What was implemented:
+  - Created /src/pages/ItemDetailPage.tsx at route /item/:id
+  - Added header with back arrow (history back), 'Item Details' title, overflow menu
+  - Created full-width hero image display (max 300px height with object-contain)
+  - Implemented PhotoViewer component with full-screen viewer and pinch-to-zoom support
+  - Added double-tap gesture to toggle between 1x and 2x zoom
+  - Added tap-to-close when not zoomed, zoom percentage indicator when zoomed
+  - Implemented fire-and-forget last_viewed_at update on page load
+  - Added ItemDetailSkeleton for loading state with proper layout
+  - Added ItemDetailError for error states (404, permission denied, network errors)
+  - Added placeholder overflow menu with Share, Favorites, Keep Forever options (to be implemented in US-056)
+  - Added basic item info display (name, category badge, location path, description)
+  - Updated pages/index.ts to export ItemDetailPage
+  - Updated App.tsx to add /item/:id route inside AppShell
+
+- Files changed:
+  - src/pages/ItemDetailPage.tsx (new - 420+ lines)
+  - src/pages/index.ts (updated - added ItemDetailPage export)
+  - src/App.tsx (updated - added route, imported ItemDetailPage)
+
+- **Learnings for future iterations:**
+  - ItemDetailPage uses Supabase join syntax for related tables: `.select('*, category:categories(...), location:locations(...)')`
+  - Use type assertion `data as unknown as ItemDetails` when query result type doesn't match TypeScript exactly
+  - Fire-and-forget pattern: call `.then()` on promise without awaiting for non-blocking updates
+  - PhotoViewer uses z-[60] to appear above the z-10 header and z-50 from other modals
+  - Overflow menu uses `ref` and `mousedown` event listener for click-outside detection
+  - Error handling: PGRST116 code indicates "no rows returned" from Supabase (item deleted or not found)
+  - Touch handling: use refs for mutable values that don't trigger re-renders (lastTouchDistanceRef, lastTapRef)
+---
+
+## 2026-01-23 - US-053
+- What was implemented:
+  - Added ExpirationBanner component to ItemDetailPage
+  - Banner displays below hero image when expiration_date exists
+  - Color-coded status: red for expired/warning (<=7 days), orange for caution (8-30 days), hidden for >30 days
+  - getExpirationStatus helper function calculates days away and returns appropriate text
+  - Made category badge tappable - navigates to /inventory?categories={id}
+  - Made location path tappable - navigates to /inventory?location={id}
+  - Added horizontal scrolling tags row with # prefix
+  - Added ChevronRightIcon for visual cue on tappable elements
+  - Added WarningIcon for expiration banner
+
+- Files changed:
+  - src/pages/ItemDetailPage.tsx (modified)
+
+- **Learnings for future iterations:**
+  - Expiration date calculation uses date-only comparison (setHours 0,0,0,0) for accurate day calculation
+  - Expiration status types: 'expired' (past), 'warning' (<=7 days), 'caution' (8-30 days), 'ok' (>30 days)
+  - Tags render with # prefix and use scrollbar-hide class for clean horizontal scrolling
+  - Category and location clicks use navigate() to go to inventory with filter params
+---
+
+## 2026-01-23 - US-054
+- What was implemented:
+  - Added collapsible DetailsSection component to ItemDetailPage
+  - Section starts expanded by default (useState(true))
+  - Toggle button with chevron icon rotates smoothly on expand/collapse
+  - Only shows fields that have values (checks for null/undefined/empty)
+  - Displays: Description, Quantity (only if >1), Brand, Model, Price, Purchase Date, Expiration Date, Notes
+  - Added formatDate helper: formats dates as 'Jan 15, 2024' using toLocaleDateString
+  - Added formatPrice helper: formats prices with currency symbols (¥, $, €, £)
+  - Added ChevronDownIcon for the expand/collapse toggle
+  - Added DetailRow component for consistent field display (label + value)
+  - Smooth 200ms collapse animation using max-height and opacity transitions
+  - Returns null if no detail fields have values (section hidden entirely)
+
+- Files changed:
+  - src/pages/ItemDetailPage.tsx (modified - added ~150 lines for details section)
+
+- **Learnings for future iterations:**
+  - Use `transition-all duration-200 ease-in-out` for smooth collapse/expand animations
+  - Calculate dynamic maxHeight based on content (details.length * 100px) for proper animation
+  - Use `rotate-180` transform on chevron icon to indicate expanded state
+  - Price field stored as decimal in database, use Number() conversion before formatting
+  - Use aria-expanded and aria-controls for accessibility on collapsible sections
+  - DetailRow uses definition list (dl/dt/dd) for semantic markup of label-value pairs
+---
+
+## 2026-01-23 - US-055
+- What was implemented:
+  - Added metadata section with gray background showing:
+    - Added date and time (e.g., "Jan 15, 2024 at 2:30 PM")
+    - Modified date (only if different from created) using areDifferentDays helper
+    - Last viewed time (relative, e.g., "2 hours ago") using formatRelativeTime helper
+  - Added sticky bottom action bar with:
+    - Edit Item button (primary blue) -> navigates to /item/{id}/edit
+    - Delete button (red outline) -> shows confirmation dialog
+  - Added delete confirmation dialog with:
+    - Item thumbnail preview
+    - Item name display
+    - "Permanently deleted after 30 days" warning text
+    - Cancel and Delete action buttons
+  - Created helper functions: formatDateTime, formatRelativeTime, areDifferentDays
+  - Created icon components: EditIcon, TrashIcon, ClockIcon
+  - Created MetadataSection and ActionBar components
+  - Fixed TypeScript types for Supabase query with proper RawItemDetails interface
+
+- Files changed:
+  - src/pages/ItemDetailPage.tsx (373 insertions, 11 deletions)
+
+- **Learnings for future iterations:**
+  - When using Supabase select() with foreign key joins, define a RawItemDetails interface that uses the plural table names (e.g., `categories`, `locations`) for nested objects, then transform to the expected format
+  - Use `.returns<RawItemDetails[]>()` with `.single()` to properly type Supabase join queries
+  - For Supabase update queries, cast to `ReturnType<typeof supabase.from>` to work around TypeScript inference limitations
+  - Use sticky positioning with `fixed bottom-0` for bottom action bars, add a spacer div to account for the bar height
+---
+
+## 2026-01-23 - US-056
+- What was implemented:
+  - Added overflow menu actions to Item Detail page
+  - Share option: uses Web Share API when available, falls back to clipboard copy
+  - Add to Favorites / Remove from Favorites: toggles is_favorite field in database
+  - Heart icon shows filled when favorited, outline when not
+  - Mark as Keep Forever / Unmark: toggles keep_forever field in database
+  - Infinity icon color changes based on state (blue when active)
+  - Toast notifications for feedback on all actions
+  - Menu items disabled during update operations to prevent double-clicks
+
+- Files changed:
+  - src/pages/ItemDetailPage.tsx (added icons, handlers, toast UI)
+
+- **Learnings for future iterations:**
+  - Web Share API is supported on mobile and some desktop browsers (Chrome/Edge); always provide clipboard fallback
+  - Use inner function definitions within useCallback to avoid dependency array issues
+  - Heart icon should have two variants: filled (currentColor fill) for active, outline (stroke) for inactive
+  - Toast notifications auto-dismiss with useEffect timer cleanup pattern
+  - Disable action buttons during async operations to prevent double-clicks
+---
+
+## 2026-01-23 - US-057
+- What was implemented:
+  - Created EditItemPage at /src/pages/EditItemPage.tsx
+  - Added route /item/:id/edit to App.tsx router
+  - Page title: 'Edit Item'
+  - Photo is shown but read-only (no editing)
+  - Bottom action bar: Cancel (text) and Save Changes (primary)
+  - Save success: returns to /item/{id} with toast 'Item updated successfully'
+  - Cancel: returns to /item/{id} without saving
+  - Unsaved changes detection using react-router-dom useBlocker
+  - Shows 'Discard changes?' dialog on navigation with unsaved changes
+  - Full form fields: name, quantity, description, category, location, tags
+  - Additional fields section: price, purchase date, expiration date, brand, model, notes
+  - Reuses TagsInput, LocationPickerModal, Toast components
+
+- Files changed:
+  - src/pages/EditItemPage.tsx (created)
+  - src/pages/index.ts (added export)
+  - src/App.tsx (added route)
+
+- **Learnings for future iterations:**
+  - Use useBlocker from react-router-dom v6 for navigation blocking on unsaved changes
+  - useBlocker returns { state: 'blocked', proceed(), reset() } - call reset() to stay, proceed() to navigate
+  - For edit pages, track both formValues and initialValues to compute hasChanges
+  - Supabase .returns<Type[]>() is useful for type inference on queries without joins
+  - For read-only photo, show 'View only' badge and disable actual photo change
+  - Keep form state updates immutable using updateField pattern with setFormValues callback
+---
+
+## 2026-01-23 - US-058
+- What was implemented:
+  - Implemented soft delete functionality by setting deleted_at timestamp
+  - Added delete confirmation dialog that shows item thumbnail, name, and "Permanently deleted after 30 days" warning
+  - Created undo toast with 5-second countdown timer (shows "Item deleted" + Undo button + countdown)
+  - Implemented undo functionality that clears deleted_at and navigates back to the restored item
+  - Toast auto-dismisses after 5 seconds if not dismissed manually
+  - Fixed pre-existing type casting issues for Supabase update operations in EditItemPage.tsx
+
+- Files changed:
+  - src/pages/ItemDetailPage.tsx (updated - added soft delete, undo toast with countdown, restore functionality)
+  - src/pages/EditItemPage.tsx (fixed - applied type casting for Supabase update operation)
+
+- **Learnings for future iterations:**
+  - Use `as ReturnType<typeof supabase.from>` to cast Supabase from() calls to fix TypeScript type inference issues with update operations
+  - Use `as string` assertion for user?.id when it could be undefined but the guard ensures it's defined
+  - Use `ReturnType<typeof setTimeout>` for timer refs instead of `NodeJS.Timeout` for browser TypeScript compatibility
+  - Countdown timers use setInterval for per-second updates with a backup setTimeout for overall duration
+  - Clean up intervals and timeouts on component unmount and when undo is triggered to prevent memory leaks
+---
+
+## 2026-01-24 - US-059
+- What was implemented:
+  - Created /src/pages/SearchPage.tsx component at route /search
+  - Added sticky search input bar at top with white background and bottom border
+  - Back arrow on left that navigates back using navigate(-1)
+  - Auto-focused text input with placeholder "Search items, tags, locations..."
+  - Clear button appears when query has text (X icon)
+  - Microphone icon conditionally shown if SpeechRecognition API is available
+  - Query preserved in URL with ?q={encoded_query} using setSearchParams with { replace: true }
+  - Added SearchPage export to /src/pages/index.ts
+  - Added /search route to App.tsx within AppShell protected routes
+
+- Files changed:
+  - src/pages/SearchPage.tsx (new)
+  - src/pages/index.ts (updated - added SearchPage export)
+  - src/App.tsx (updated - added /search route and SearchPage import)
+
+- **Learnings for future iterations:**
+  - Check SpeechRecognition support with: `window.SpeechRecognition || window.webkitSpeechRecognition`
+  - Use `setSearchParams({}, { replace: true })` to clear URL params without adding history entry
+  - Auto-focus on mount with useEffect + inputRef.current.focus()
+  - Placeholder search results added for upcoming US-060, US-061 implementations
+  - isSpeechRecognitionSupported() helper function for cross-browser Speech API detection
+---
+
+## 2026-01-24 - US-060
+- What was implemented:
+  - Created useSearch hook with 300ms debounce for real-time search
+  - Search across multiple fields: name, description, tags, category.name, location.path, brand
+  - Used separate Supabase queries for category and location joins, then combined and deduplicated results
+  - Created SearchResult component with HighlightText for highlighting matches (yellow background using <mark>)
+  - Results show: thumbnail (60x60), name with highlight, location path with highlight, category badge with icon and color
+  - Results header shows "{n} results for {query}"
+  - Loading state uses SearchResultSkeleton components (5 placeholders)
+  - No results state shows magnifying glass with X icon and helpful message
+  - Error state shows warning icon with retry button
+  - AbortController cancels in-flight requests when new search is initiated
+  - Added TypeScript type declarations for Web Speech API (SpeechRecognition)
+
+- Files changed:
+  - src/hooks/useSearch.ts (new - search hook with debounce, abort, and multi-field search)
+  - src/components/SearchResult.tsx (new - search result item with highlighting)
+  - src/pages/SearchPage.tsx (updated - integrated useSearch hook and SearchResult component)
+
+- **Learnings for future iterations:**
+  - Use `tags.cs.{value}` for Supabase array contains search (case-sensitive)
+  - Use `.or()` for combining multiple ilike conditions on items table
+  - For searching joined tables (categories.name, locations.path), use separate queries with `!inner` join then combine results
+  - Deduplicate combined results using Map by id
+  - Use AbortController with `.abortSignal()` to cancel Supabase requests
+  - Web Speech API types need global declaration: `interface Window { SpeechRecognition?: ...; webkitSpeechRecognition?: ...; }`
+  - Use `<mark className="bg-yellow-200">` for highlighted text with proper styling
+  - Use regex with escaped special characters for safe text splitting in highlight function
+---
+
+## 2026-01-24 - US-061
+- What was implemented:
+  - Created useRecentSearches hook at `/src/hooks/useRecentSearches.ts`
+  - Stores last 10 unique queries in localStorage (key: ownly_recent_searches)
+  - Recent searches section shows when search input is empty
+  - Header: 'Recent Searches' + 'Clear All' link with confirmation dialog
+  - Tap recent query populates input and executes search
+  - Swipe left reveals Delete button on mobile
+  - Hover shows X delete button on desktop
+  - Save to recent when: query >=2 chars AND results >=1 (via onSuccessfulSearch callback)
+  - Added ClockIcon, TrashIcon, RecentSearchItem, and ClearConfirmDialog components
+  - RecentSearchItem uses touch events for swipe gesture (startX, deltaX, swiped state)
+  - Fixed ESLint error by using type alias instead of interface with constructor
+
+- Files changed:
+  - src/hooks/useRecentSearches.ts (used existing file - hook already created in previous iteration)
+  - src/pages/SearchPage.tsx (added recent searches UI, swipe-to-delete, confirmation dialog)
+
+- **Learnings for future iterations:**
+  - useSearch hook has `onSuccessfulSearch` callback for hooking into successful searches
+  - For swipe gestures, track startX, calculate deltaX on move, check threshold on end
+  - Use `e.stopPropagation()` to prevent parent click handler when clicking delete button
+  - Use `useRef<HTMLDivElement>` with click outside listener to reset swipe state
+  - For TypeScript with ESLint `@typescript-eslint/no-misused-new`, use type alias instead of interface for constructors
+  - Example: `type SpeechRecognitionConstructor = new () => unknown;` instead of interface with `new (): Type`
+---
+
+## 2026-01-24 - US-062
+- What was implemented:
+  - Added comprehensive SpeechRecognition TypeScript type declarations for Web Speech API
+  - Created PulsingMicIcon component with animated pulsing rings and red dot
+  - Created VoiceSearchOverlay full-screen overlay component with:
+    - Pulsing microphone animation
+    - "Listening..." text
+    - Real-time transcription display
+    - Cancel hint ("Tap anywhere to cancel")
+  - Implemented handleMicrophoneClick function with:
+    - SpeechRecognition instance creation and configuration
+    - Permission handling (shows alert for "Microphone access required")
+    - Real-time transcription via onresult handler
+    - 5-second no-speech timeout with "Didn't catch that" feedback
+    - Auto-execute search when final transcript received
+  - Added stopVoiceSearch utility for cleanup
+  - Added handleVoiceSearchCancel for overlay tap-to-cancel
+  - Added cleanup effect on component unmount
+
+- Files changed:
+  - src/pages/SearchPage.tsx (added 280 lines, modified 4 lines)
+
+- **Learnings for future iterations:**
+  - Web Speech API types are not included in standard TypeScript lib - need custom interface declarations
+  - SpeechRecognition events have `results` with indexed access and `isFinal` flag for detecting completed speech
+  - Use `abort()` instead of `stop()` for immediate cancellation without triggering onend with results
+  - Browser may prefix SpeechRecognition as `webkitSpeechRecognition` - check both
+  - The `not-allowed` and `permission-denied` error types indicate microphone permission issues
+  - Using alert() as temporary toast replacement until Toast component is fully implemented in US-083
+---
+
+## 2026-01-24 - US-063
+- What was implemented:
+  - Verified all search empty and loading states were already implemented in US-059 to US-062
+  - Loading state: 5 SearchResultSkeleton components display during API calls (SearchPage.tsx lines 751-760)
+  - No results state: NoResultsIcon (magnifying glass with X) + "No items found" + "Try different keywords" (lines 837-846)
+  - Abort previous request: AbortController in useSearch.ts (lines 143-148) cancels in-flight requests
+  - Error state: "Search failed" message with Retry button (lines 763-787)
+  - Empty recent searches: "Your recent searches will appear here" message (lines 825-833)
+  - All functionality was implemented as part of the search feature development
+
+- Files changed:
+  - No code changes needed - all functionality already present
+  - scripts/ralph/prd.json (marked US-063 as passes: true)
+
+- **Learnings for future iterations:**
+  - Search feature empty/loading states were implemented holistically with the main search functionality
+  - When implementing features, consider implementing related UX states in the same PR
+  - AbortController pattern works well with Supabase's .abortSignal() method
+---
+
+## 2026-01-24 - US-064
+- What was implemented:
+  - Added "Reminders & Notifications" section to SettingsPage
+  - Master toggle "Enable Reminders" (reminder_enabled) with helper text
+  - When enabled, shows indented sub-options:
+    - Unused Item Reminder dropdown: 30/60/90/180/365 days (reminder_threshold_days)
+    - Expiration Reminder dropdown: 3/7/14/30 days before (expiration_reminder_days)
+    - Push Notifications toggle (push_notifications_enabled)
+  - All settings save to user_settings via useUserSettings hook on change
+  - Loading state with pulse animation while settings are being fetched
+  - Error toast "Failed to update setting" when save fails
+  - Proper accessibility: aria-checked, role="switch", label associations
+
+- Files changed:
+  - src/pages/SettingsPage.tsx (updated - added reminder settings section with 168 new lines)
+
+- **Learnings for future iterations:**
+  - Custom toggle switch: Use button with role="switch" and aria-checked for accessibility
+  - Toggle animation: translate-x-5 for ON, translate-x-0 for OFF with smooth transition
+  - Indentation pattern: pl-8 creates visual hierarchy for sub-options
+  - Settings update pattern: handleSettingChange function with isUpdating guard to prevent double-submit
+  - Optional chaining with nullish coalescing (settings?.field ?? default) handles undefined state gracefully
+---
+
+## 2026-01-24 - US-065
+- What was implemented:
+  - Created SQL migration for push_subscriptions table to store Web Push API endpoints
+  - Table fields: id, user_id, endpoint, p256dh, auth, device_name, user_agent, is_active, timestamps
+  - RLS policies: users can only manage their own subscriptions
+  - Added PushSubscription type to TypeScript types
+  - Created usePushNotifications hook with:
+    - Browser Push API support detection
+    - Permission state tracking (granted/denied/default/unsupported)
+    - requestPermission() function that requests browser permission and creates subscription
+    - unsubscribe() function to remove push subscription
+    - Subscription storage in Supabase push_subscriptions table
+  - Updated SettingsPage to use push notification hook:
+    - Shows loading spinner in toggle while requesting permission
+    - Shows "Notifications blocked" warning when permission denied
+    - Provides "How to enable" help link
+    - Toast messages for success/error states
+  - Added VITE_VAPID_PUBLIC_KEY to .env.example
+
+- Files changed:
+  - supabase/migrations/20260123000010_create_push_subscriptions_table.sql (new)
+  - src/types/database.ts (added PushSubscription type and table definition)
+  - src/types/index.ts (exported PushSubscription)
+  - src/hooks/usePushNotifications.ts (new)
+  - src/pages/SettingsPage.tsx (integrated push notification permission flow)
+  - .env.example (added VAPID public key)
+
+- **Learnings for future iterations:**
+  - Web Push API requires service worker registration via navigator.serviceWorker.ready
+  - PushSubscription.toJSON() returns { endpoint, keys: { p256dh, auth } } for server storage
+  - VAPID public key must be converted from base64 URL-safe to Uint8Array for applicationServerKey
+  - Permission can be 'default' (not asked yet), 'granted', or 'denied'
+  - Use document.visibilitychange event to detect if user changed permissions in browser settings
+  - Push subscription upsert with onConflict handles re-registering same device
+---
+
+## 2026-01-24 - US-066
+- What was implemented:
+  - Created NotificationsPage at /notifications with full notification list UI
+  - Created useNotifications hook for fetching and managing notifications
+  - Created NotificationBell component with unread count badge
+  - Added bell icon to Dashboard header (next to avatar)
+  - Added bell icon to Inventory header (next to search icon)
+  - Badge shows red indicator with unread count (or 9+ if >9)
+  - Notifications list with type icons (unused_item, expiring_item, system)
+  - Unread notifications highlighted with blue background and blue dot
+  - Mark All Read link in header when unread exist
+  - Tap notification marks as read and navigates to linked item
+  - Loading skeletons and empty/error states
+
+- Files changed:
+  - src/hooks/useNotifications.ts (new)
+  - src/components/NotificationBell.tsx (new)
+  - src/pages/NotificationsPage.tsx (new)
+  - src/pages/index.ts (exported NotificationsPage)
+  - src/App.tsx (added /notifications route)
+  - src/pages/DashboardPage.tsx (added NotificationBell)
+  - src/pages/InventoryPage.tsx (added NotificationBell)
+
+- **Learnings for future iterations:**
+  - NotificationBell component is reusable across pages with useNotifications hook
+  - Badge uses min-width 18px for consistent sizing with 9+ text
+  - Notification type icons: clock for unused_item, warning for expiring_item, info for system
+  - Unread indicator is a blue dot on right side of notification title
+  - Mark as read is fire-and-forget on click, updates local state immediately
+---
+
+## 2026-01-24 - US-067
+- What was implemented:
+  - Created Supabase Edge Function at supabase/functions/generate-reminders/index.ts
+  - Background job to generate reminder notifications for users
+  - Intended to be triggered daily via pg_cron, Supabase scheduled functions, or external scheduler
+  - Finds users with reminder_enabled = true in user_settings
+  - Finds unused items: last_viewed_at < (now - threshold) AND keep_forever=false AND deleted_at IS NULL
+  - Finds expiring items: expiration_date BETWEEN now AND (now + days)
+  - Creates notification records with duplicate prevention (checks for existing notifications within 7 days for unused, 24 hours for expiring)
+  - Friendly notification titles and body text with days ago/until formatting
+  - Optional secret key validation for external schedulers (X-Reminder-Secret header)
+  - Uses SUPABASE_SERVICE_ROLE_KEY to bypass RLS for processing all users
+  - Returns JSON response with: users_processed, unused_notifications_created, expiring_notifications_created, errors
+
+- Files changed:
+  - supabase/functions/generate-reminders/index.ts (new)
+
+- **Learnings for future iterations:**
+  - Scheduled Edge Functions can use SUPABASE_SERVICE_ROLE_KEY to bypass RLS
+  - For batch operations across users, service role key is required
+  - Duplicate prevention uses time-based checks (7 days for unused, 24 hours for expiring)
+  - Use optional secret key (REMINDER_SECRET_KEY) for external scheduler security
+  - Supabase .or() filter syntax: `.or('field.is.null,field.lt.value')`
+  - Date comparisons with Supabase use ISO format strings
+  - Include recently expired items (within 7 days) in expiring notifications
+---
+
+## 2026-01-24 - US-068
+- What was implemented:
+  - Created /public/manifest.json with PWA configuration:
+    - name: "Ownly - Smart Home Inventory"
+    - short_name: "Ownly"
+    - description: App description
+    - start_url: "/"
+    - display: "standalone"
+    - theme_color: "#3B82F6" (blue)
+    - background_color: "#FFFFFF"
+    - orientation: "portrait-primary"
+    - Icons array referencing 192x192, 512x512, and maskable versions
+  - Created app icons using sharp library:
+    - icon-192x192.png and icon-512x512.png (standard)
+    - icon-192x192-maskable.png and icon-512x512-maskable.png (with safe zone)
+    - favicon.png, favicon.ico, apple-touch-icon.png
+    - icon.svg (source SVG design)
+  - Created scripts/generate-icons.mjs for regenerating icons
+  - Updated index.html with:
+    - PWA meta tags (theme-color, description, apple-mobile-web-app-*)
+    - Favicon links (PNG and ICO)
+    - Apple touch icon link
+    - Manifest link
+    - Updated title to "Ownly - Smart Home Inventory"
+  - Fixed pre-existing TypeScript errors in hooks (type casting for Supabase calls)
+
+- Files changed:
+  - public/manifest.json (new)
+  - public/icons/icon-192x192.png (new)
+  - public/icons/icon-512x512.png (new)
+  - public/icons/icon-192x192-maskable.png (new)
+  - public/icons/icon-512x512-maskable.png (new)
+  - public/icons/favicon.png (new)
+  - public/icons/apple-touch-icon.png (new)
+  - public/icons/icon.svg (new)
+  - public/favicon.ico (new)
+  - index.html (modified)
+  - scripts/generate-icons.mjs (new)
+  - package.json, package-lock.json (added sharp dependency)
+  - src/hooks/useNotifications.ts (fixed type casting)
+  - src/hooks/usePushNotifications.ts (fixed type casting)
+  - src/types/database.ts (fixed Update type definitions)
+
+- **Learnings for future iterations:**
+  - Use sharp library (npm install sharp --save-dev) for programmatic PNG generation from SVG
+  - Maskable icons need 10% padding on all sides for safe zone (Android adaptive icons)
+  - PWA manifest requires at least 192x192 and 512x512 icons
+  - theme_color in manifest should match meta[name="theme-color"] in HTML
+  - Apple devices need apple-touch-icon and apple-mobile-web-app-* meta tags
+  - Supabase type inference issues can be fixed with `as ReturnType<typeof supabase.from>` and `as Record<string, unknown>` casting
+---
+
+## 2026-01-23 - US-069
+- What was implemented:
+  - Installed vite-plugin-pwa for Workbox-based service worker generation
+  - Configured vite.config.ts with PWA plugin and caching strategies:
+    - App shell (HTML, CSS, JS, fonts) cached on install with cache-first strategy
+    - Supabase REST API responses use network-first with 24h cache fallback
+    - Supabase Edge Functions use network-first with 1h cache fallback
+    - Supabase Storage images use cache-first with 30-day expiration
+    - Images and fonts use cache-first for optimal performance
+  - Cache includes version (`ownly-v1`) for controlled updates
+  - Service worker registered on app load in main.tsx with:
+    - onNeedRefresh: dispatches custom 'pwa-update-available' event for UI (US-090)
+    - onOfflineReady: logs when app can work offline
+    - onRegistered/onRegisterError: logging for debugging
+  - Added TypeScript declarations for vite-plugin-pwa virtual modules
+  - Added global type for custom PWA update event
+
+- Files changed:
+  - package.json, package-lock.json (added vite-plugin-pwa)
+  - vite.config.ts (added VitePWA plugin configuration)
+  - src/main.tsx (added service worker registration)
+  - src/types/vite-pwa.d.ts (new - PWA type declarations)
+
+- **Learnings for future iterations:**
+  - vite-plugin-pwa generates sw.js and workbox-*.js in dist/ during build
+  - Use `registerType: 'prompt'` for manual control over service worker updates
+  - Use `manifest: false` to use existing manifest.json from public folder
+  - Workbox runtimeCaching patterns use regex to match URLs
+  - NetworkFirst with networkTimeoutSeconds provides cache fallback on slow networks
+  - CacheFirst is ideal for immutable assets (images, fonts, storage files)
+  - Custom events can be used to communicate between SW registration and app UI
+---
+
+## 2026-01-24 - US-070
+- What was implemented:
+  - Created useInstallPrompt hook at /src/hooks/useInstallPrompt.ts
+  - Captures beforeinstallprompt event and defers native prompt
+  - Tracks engagement criteria via localStorage:
+    - Pages viewed count (ownly_pages_viewed)
+    - First visit timestamp (ownly_first_visit_at)
+    - Dismiss timestamp (ownly_install_dismissed_at)
+    - Installed flag (ownly_app_installed)
+  - Banner shows when: event captured, 2+ pages viewed, 30+ seconds spent, not dismissed in 7 days, not installed
+  - Detects standalone mode via display-mode media query and iOS navigator.standalone
+  - Created InstallBanner component at /src/components/InstallBanner.tsx
+  - Banner shows app icon (192x192), title, subtext, Not Now and Install buttons
+  - Install button triggers event.prompt() and awaits user choice
+  - Not Now button dismisses with 7-day cooldown persisted in localStorage
+  - Integrated InstallBanner into AppShell (shows above bottom nav)
+  - Toast notification "App installed!" on successful installation
+  - Listens for appinstalled event to update state
+  - Closing animation with opacity/translate transition
+
+- Files changed:
+  - src/hooks/useInstallPrompt.ts (new - 282 lines)
+  - src/components/InstallBanner.tsx (new - 149 lines)
+  - src/components/layout/AppShell.tsx (modified - added InstallBanner and toast)
+
+- **Learnings for future iterations:**
+  - beforeinstallprompt event is Chrome/Android specific (not in standard TypeScript DOM types)
+  - Declare global interface WindowEventMap for custom event typing
+  - Use refs for deferredPrompt to avoid re-renders on event capture
+  - Check display-mode: standalone media query for installed state detection
+  - iOS uses navigator.standalone property for PWA detection
+  - event.prompt() can only be called once per event; stash the event reference
+  - Use localStorage for persistent engagement tracking across sessions
+  - MediaQueryListEvent listener on display-mode for real-time install detection
+---
+
+## 2026-01-24 - US-071
+- What was implemented:
+  - Created useIOSInstallPrompt hook at /src/hooks/useIOSInstallPrompt.ts
+  - Detects iOS devices via user agent (iPhone, iPad, iPod, iPad-as-Mac)
+  - Detects Safari browser (excludes CriOS/Chrome, FxiOS/Firefox, EdgiOS/Edge, OPT/Opera)
+  - Checks standalone mode via display-mode media query and navigator.standalone
+  - Reads engagement tracking from shared localStorage keys with Android hook
+  - 30-day dismiss cooldown stored in ownly_ios_install_dismissed_at
+  - Created IOSInstallBanner component at /src/components/IOSInstallBanner.tsx
+  - Banner shows: app icon, title, instructions to tap Share icon then "Add to Home Screen"
+  - Got It button dismisses with 30-day cooldown
+  - Closing animation matches Android banner style
+  - Integrated into AppShell (both banners rendered, only one shows based on platform)
+
+- Files changed:
+  - src/hooks/useIOSInstallPrompt.ts (new - 243 lines)
+  - src/components/IOSInstallBanner.tsx (new - 118 lines)
+  - src/components/layout/AppShell.tsx (modified - added IOSInstallBanner import and render)
+
+- **Learnings for future iterations:**
+  - iOS Safari doesn't support beforeinstallprompt event; must use instructional banner
+  - iPad on iOS 13+ reports as Macintosh - detect via navigator.maxTouchPoints > 1
+  - Safari user agent includes "Safari" but other iOS browsers add specific identifiers (CriOS, FxiOS, etc.)
+  - navigator.standalone is Safari-specific for detecting PWA mode on iOS
+  - Page view and time tracking are shared with Android hook via same localStorage keys
+  - ESLint strict mode requires avoiding setState in useEffect body - use lazy initializers
+  - Use storage event listener for cross-tab sync of localStorage values
+---
+
+## 2026-01-24 - US-072
+- What was implemented:
+  - Created useOnlineStatus hook at /src/hooks/useOnlineStatus.ts
+  - Hook tracks online/offline status using Navigator.onLine API
+  - Listens to window 'online' and 'offline' events for real-time updates
+  - Returns isOnline and isOffline convenience properties
+  - Created OfflineBanner component at /src/components/OfflineBanner.tsx
+  - Banner shows "You're offline" with wifi-off icon at top of screen
+  - Fixed position with amber/yellow background for visibility
+  - Automatically shows/hides based on connection status
+  - Created OfflineContext and OfflineProvider at /src/contexts/
+  - Provider offers requireOnline() helper for network-required actions
+  - showOfflineToast() for custom offline messages
+  - Shows toast "This requires an internet connection" when action attempted offline
+  - Created useOffline hook at /src/hooks/useOffline.ts to consume context
+  - Integrated OfflineBanner into AppShell (renders at top, above header)
+  - Wrapped App with OfflineProvider for global offline state access
+
+- Files changed:
+  - src/hooks/useOnlineStatus.ts (new - 48 lines)
+  - src/hooks/useOffline.ts (new - 33 lines)
+  - src/components/OfflineBanner.tsx (new - 56 lines)
+  - src/contexts/offline-context.ts (new - 21 lines)
+  - src/contexts/OfflineProvider.tsx (new - 63 lines)
+  - src/contexts/index.ts (modified - added OfflineContext and OfflineProvider exports)
+  - src/components/layout/AppShell.tsx (modified - added OfflineBanner import and render)
+  - src/App.tsx (modified - wrapped with OfflineProvider)
+
+- **Learnings for future iterations:**
+  - useOnlineStatus hook at `/src/hooks/useOnlineStatus.ts` - use `const { isOnline, isOffline } = useOnlineStatus()`
+  - useOffline hook at `/src/hooks/useOffline.ts` - use `const { isOnline, requireOnline, showOfflineToast } = useOffline()`
+  - OfflineProvider wraps app for global offline state; OfflineContext for context value
+  - navigator.onLine returns true for online, false for offline (may be optimistic in some cases)
+  - window 'online'/'offline' events fire when connection status changes
+  - ESLint react-hooks/set-state-in-effect rule prevents setState sync calls in useEffect
+  - Use lazy initializer in useState for reading navigator.onLine on mount instead
+  - requireOnline(actionName) returns true if online, false if offline (also shows toast)
+  - type-only imports required for TypeScript verbatimModuleSyntax compatibility
+---
+
+## 2026-01-23 - US-073
+- What was implemented:
+  - Added 'Shop' tab to bottom navigation with shopping cart icon
+  - Created /src/pages/ShoppingPage.tsx at route /shopping
+  - Implemented initial state UI with:
+    - Shopping bag icon and 'Smart Shopping Assistant' heading
+    - Helper text: 'Take a photo of something you're thinking of buying and I'll check if you already have it'
+    - Take Photo and Choose from Gallery action cards (similar pattern to AddItemPage)
+    - Recent queries section showing last 3 shopping queries from localStorage
+    - Tips section explaining how the feature works
+  - Added ShopIcon component to BottomNav.tsx with cart icon
+  - Updated navItems array to include Shop tab between Inventory and Settings
+  - Updated App.tsx to include /shopping route
+  - Updated pages index.ts to export ShoppingPage
+
+- Files changed:
+  - src/components/layout/BottomNav.tsx (added ShopIcon and Shop nav item)
+  - src/pages/ShoppingPage.tsx (new)
+  - src/pages/index.ts (added ShoppingPage export)
+  - src/App.tsx (added /shopping route)
+
+- **Learnings for future iterations:**
+  - BottomNav now has 5 tabs: Home, Add (FAB), Inventory, Shop, Settings
+  - ShoppingPage uses localStorage key 'ownly_shopping_queries' for recent queries
+  - RecentQuery interface: { id: string, thumbnailUrl: string, itemName: string, timestamp: number }
+  - Photo capture UI pattern is shared with AddItemPage - uses same validateImage util
+  - US-074+ will implement the chat interface after photo capture
+---
+
+## 2026-01-24 - US-074
+- What was implemented:
+  - Created chat interface for Shopping Assistant that activates after photo capture
+  - Implemented ChatMessage interface with id, role (user/assistant), type (text/image/analysis), content, imageUrl, timestamp
+  - Added ViewState type to manage 'initial' and 'chat' view states
+  - Implemented scrollable message area with flex-1 overflow-y-auto
+  - Created sticky bottom input bar with:
+    - Camera button (left) to add photos during chat
+    - Text input field with placeholder "Ask a follow-up..."
+    - Send button (right) that enables when input has text
+  - User messages styled: right-aligned, blue background (bg-blue-500), white text, rounded-br-md
+  - Assistant messages styled: left-aligned, gray background (bg-gray-200), dark text, rounded-bl-md
+  - Photo messages render as image thumbnails inside message bubbles
+  - Timestamps shown below message groups (groups within 5 minutes share timestamp)
+  - Added typing indicator with three animated bouncing dots
+  - Chat header with back button, "Shopping Assistant" title, status indicator, and "New Chat" button
+  - Implemented handleNewChat to clear chat and return to initial state
+  - Added separate camera input (chatCameraInputRef) for adding photos during chat
+
+- Files changed:
+  - src/pages/ShoppingPage.tsx (major update with chat interface)
+
+- **Learnings for future iterations:**
+  - Use ViewState type ('initial' | 'chat') to switch between page modes
+  - Chat messages use isSameTimeGroup() to group messages within 5 minutes
+  - formatMessageTime() shows just time for today, or "Jan 23, 2:30 PM" for older dates
+  - simulateAIResponse() is a placeholder that will be replaced by US-075/US-076 with actual AI analysis
+  - Chat history is maintained during session but not persisted (per acceptance criteria)
+  - pb-safe class is used for bottom padding on input bar (safe area for notched phones)
+---
+
+## 2026-01-24 - US-075
+- What was implemented:
+  - Created Supabase Edge Function `shopping-analyze` at `supabase/functions/shopping-analyze/index.ts`
+  - Function accepts image URL in request body
+  - Calls OpenAI GPT-4o Vision API to identify the item being considered for purchase
+  - Generates embedding using OpenAI text-embedding-3-small (1536 dimensions)
+  - Queries user's inventory using `search_items_by_embedding()` for similarity (threshold 0.6)
+  - Returns detected item info, similar items array with match percentages, and shopping advice
+  - Implemented rate limiting with daily photo limit (20 per day)
+  - Created SQL migration `20260123000011_create_shopping_usage_table.sql` for usage tracking
+  - Migration includes `shopping_usage` table with user_id, usage_date, photo_count, text_count
+  - Created `increment_shopping_photo_usage()` and `increment_shopping_text_usage()` SQL functions
+  - Added RLS policies for users to view their own usage only
+
+- Files changed:
+  - supabase/functions/shopping-analyze/index.ts (new)
+  - supabase/migrations/20260123000011_create_shopping_usage_table.sql (new)
+
+- **Learnings for future iterations:**
+  - Use SECURITY DEFINER with explicit search_path for functions that need to bypass RLS
+  - For upsert pattern in Postgres, use ON CONFLICT ... DO UPDATE
+  - Edge Functions can access SUPABASE_SERVICE_ROLE_KEY for admin operations
+  - Vector embedding search uses `search_items_by_embedding()` with explicit user_id for server-side calls
+  - Rate limiting tables should have unique constraint on (user_id, usage_date) for upsert
+  - Using gpt-4o-mini for advice generation saves costs vs full gpt-4o
+---
+
+## 2026-01-24 - US-076
+- What was implemented:
+  - Integrated Shopping Assistant chat with shopping-analyze Edge Function
+  - Replaced placeholder AI response with real API calls to shopping-analyze
+  - Display detected item in chat with name and category suggestion badge
+  - Similar items section showing thumbnails, names, locations, and match percentages
+  - Color-coded match badges: red (≥90%), orange (70-89%), green (<70%)
+  - Item detail modal overlay when tapping similar items (shows full image, location, view button)
+  - Usage tracking display showing "X/20 daily analyses used"
+  - Handle rate limit errors (429) with friendly message about daily limit
+  - Handle auth errors (401) with session expiration message
+  - Handle offline state with requireOnline() check before API calls
+  - Upload images to Supabase storage before analysis (using existing uploadToStorage)
+  - Save recent queries to localStorage for quick re-access
+
+- Files changed:
+  - src/pages/ShoppingPage.tsx (modified - added AI response display, modal, error handling)
+
+- **Learnings for future iterations:**
+  - Use useAuth() hook's session.access_token for Edge Function authorization
+  - Use requireOnline() from useOffline hook to check connectivity before API calls
+  - For shopping photos, use existing 'items' bucket with unique filename prefix (shopping-{timestamp}-{random}.jpg)
+  - ShoppingAnalyzeResponse type from api.ts has usage info in optional property
+  - Modal overlays use fixed positioning with z-50 and bg-black/50 backdrop
+  - animate-in slide-in-from-bottom for bottom sheet modal animations
+---
+
+## 2026-01-24 - US-077
+- What was implemented:
+  - Created shopping-followup Edge Function for handling text follow-up questions
+  - Edge Function builds conversation context from message history (last 10 messages)
+  - Uses GPT-4o-mini for cost-efficient conversational responses
+  - Updated ShoppingPage handleSendMessage to call the new Edge Function
+  - Passes full conversation history to API including detected items and similar items info
+  - Added ShoppingFollowupRequest/Response types to api.ts
+  - Rate limiting: 50 text questions per day per user
+  - Proper error handling for rate limits (429), auth errors (401), and offline state
+
+- Files changed:
+  - supabase/functions/shopping-followup/index.ts (new)
+  - src/pages/ShoppingPage.tsx (modified - updated handleSendMessage)
+  - src/types/api.ts (modified - added ShoppingFollowupRequest/Response, ShoppingConversationMessage)
+
+- **Learnings for future iterations:**
+  - For conversation context, limit to last 10 messages to avoid token limits
+  - Use gpt-4o-mini for follow-up responses (cheaper than gpt-4o)
+  - shopping_usage table already has text_count column from previous migration
+  - increment_shopping_text_usage() SQL function already exists
+  - When building conversation history, only include essential data (detected_item name/category, similarity scores) not full objects
+  - Edge Function can reuse existing auth validation pattern from shopping-analyze
+---
+
+## 2026-01-23 - US-078
+- What was implemented:
+  - Added ShoppingUsage type to api.ts for tracking photo/text usage limits
+  - Created useShoppingUsage hook at /src/hooks/useShoppingUsage.ts with:
+    - Daily limits: 20 photo analyses, 50 text questions
+    - Warning thresholds: show warning at 5 remaining photos, 10 remaining questions
+    - Helper functions: getPhotoWarningMessage, getTextWarningMessage, etc.
+    - Usage state management via updateUsage callback
+  - Updated ShoppingPage to integrate usage tracking:
+    - Warning banners displayed when approaching limits (yellow) or at limit (red)
+    - Buttons/inputs disabled when limits reached
+    - Usage state updated from API responses
+    - Camera button and photo action cards disabled when photo limit reached
+    - Text input and send button disabled when text limit reached
+
+- Files changed:
+  - src/types/api.ts (modified - added ShoppingUsage type, updated ShoppingAnalyzeResponse)
+  - src/hooks/useShoppingUsage.ts (new)
+  - src/pages/ShoppingPage.tsx (modified - integrated useShoppingUsage, added warning UI)
+
+- **Learnings for future iterations:**
+  - Usage limits were already implemented in Edge Functions (US-075, US-077) - just needed UI integration
+  - shopping_usage table already existed with increment functions
+  - Edge Function responses already included usage data in responses
+  - useShoppingUsage hook tracks client-side state that syncs with API responses
+  - Warning thresholds: 5 remaining for photos (at 15 uses), 10 remaining for text
+  - Limits reset at midnight UTC (handled by database using usage_date column)
+---
+
+## 2026-01-24 - US-079
+- What was implemented:
+  - Created Supabase Edge Function `cleanup-deleted-items` for permanently deleting soft-deleted items
+  - Function finds items where deleted_at < NOW() - 30 days
+  - Hard deletes item records from the database
+  - Deletes associated files from Supabase Storage (photo and thumbnail)
+  - Logs deletion counts for audit purposes
+  - Optional secret key validation for external schedulers
+
+- Files changed:
+  - supabase/functions/cleanup-deleted-items/index.ts (new - Edge Function for permanent deletion)
+
+- **Learnings for future iterations:**
+  - Storage URLs have pattern: /storage/v1/object/{public|sign}/items/{user-id}/{filename}
+  - Use extractStoragePath() helper to extract the path from full URL for storage deletion
+  - Supabase storage.remove() accepts array of paths for batch deletion
+  - Service role key bypasses RLS for both database and storage operations
+  - Edge Functions can be triggered via pg_cron, Supabase scheduled functions, or external schedulers
+  - Optional secret key header (X-Cleanup-Secret) provides protection for external triggers
+---
+
+## 2026-01-24 - US-080
+- What was implemented:
+  - Created Supabase Edge Function `generate-embedding` at `supabase/functions/generate-embedding/index.ts`
+  - Accepts either item_id (to fetch and generate embedding for existing item) or text description
+  - Calls OpenAI Embeddings API with text-embedding-3-small model (1536 dimensions)
+  - Updates item.embedding field in database when item_id provided
+  - Includes comprehensive auth validation and error handling
+  - Can be called async after item creation (non-blocking)
+  - Handles API errors gracefully with appropriate error responses
+
+- Files changed:
+  - supabase/functions/generate-embedding/index.ts (new)
+
+- **Learnings for future iterations:**
+  - Edge Functions use similar patterns for auth validation: extract Bearer token, create Supabase client with token, call auth.getUser()
+  - For vector embedding updates, format as PostgreSQL vector string: `[${embedding.join(',')}]`
+  - The `buildEmbeddingText()` function combines name, description, tags, and brand for richer semantic search
+  - Use service role key for admin operations that need to bypass RLS
+  - OpenAI text-embedding-3-small has an 8000 character practical limit for input text
+---
+
+## 2026-01-24 - US-081
+- What was implemented:
+  - Created reusable usePullToRefresh hook at `/src/hooks/usePullToRefresh.ts`
+    - Touch event handlers for pull gesture detection
+    - Rubber band resistance effect during pull
+    - Configurable threshold and resistance
+    - isRefreshing state management for refresh animation
+  - Created reusable PullToRefreshIndicator component at `/src/components/PullToRefreshIndicator.tsx`
+    - Shows pull progress arrow that flips when threshold reached
+    - Shows spinner during refresh
+    - Shows appropriate text feedback ("Pull to refresh", "Release to refresh", "Refreshing...")
+  - Added pull-to-refresh to DashboardPage:
+    - Touch handlers on main container
+    - Refreshes all dashboard data in parallel (stats, expiring items, recent items)
+    - Shows Toast on refresh failure
+  - Added pull-to-refresh to InventoryPage:
+    - Refactored existing pull-to-refresh implementation to use shared hook/component
+    - Shows Toast on refresh failure
+    - Simplified code by reusing shared components
+
+- Files changed:
+  - src/hooks/usePullToRefresh.ts (new)
+  - src/components/PullToRefreshIndicator.tsx (new)
+  - src/pages/DashboardPage.tsx (modified - added pull-to-refresh)
+  - src/pages/InventoryPage.tsx (modified - refactored to use shared hook/component)
+
+- **Learnings for future iterations:**
+  - usePullToRefresh hook provides handleTouchStart, handleTouchMove, handleTouchEnd for containers
+  - PullToRefreshIndicator component handles visual feedback (position dynamically based on pullDistance)
+  - Pull threshold default is 80px with 0.5 resistance factor for rubber band effect
+  - Dashboard uses Promise.all() to refresh all data sources in parallel (refetchStats, refetchExpiring, refetchRecent)
+  - setToast state setter needs to be in useCallback dependencies for React compiler
+  - Toast component already exists at `/src/components/Toast.tsx` for simple notifications
+---
+
+---
+## Iteration: US-082 - Create loading skeletons for all main pages
+- **Status:** COMPLETED
+- **Date:** 2026-01-24
+- **Commit:** 02d70b5
+
+### Summary
+Created a comprehensive reusable Skeleton component library that provides building blocks for loading placeholders across all main pages.
+
+### Components Created
+- **SkeletonLine**: Text placeholder (single line) with configurable width/height
+- **SkeletonCircle**: Circular placeholder for avatars/icons
+- **SkeletonRect**: Rectangular placeholder for images/cards with aspect ratio support
+- **SkeletonCard**: Card placeholder with optional image, text lines, and badge
+- **SkeletonListRow**: List row placeholder with thumbnail and action area
+- **SkeletonGrid**: Grid of card skeletons for gallery view (responsive columns)
+- **SkeletonList**: List of row skeletons with optional dividers
+- **SkeletonStatCard**: Dashboard stat card placeholder
+- **SkeletonSection**: Section with header placeholder
+- **SkeletonItemDetail**: Full item detail page skeleton
+- **SkeletonSearchResult**: Search result row skeleton
+- **SkeletonDashboard**: Full dashboard page skeleton
+- **SkeletonInventory**: Inventory page skeleton (adapts to view mode)
+
+### Files Changed
+- src/components/Skeleton.tsx (new - 536 lines)
+
+### Acceptance Criteria Met
+- ✅ Create reusable Skeleton components (line, card, grid, list)
+- ✅ Dashboard: stat cards skeleton, section skeletons (SkeletonDashboard, SkeletonStatCard, SkeletonSection)
+- ✅ Inventory: grid or list skeleton matching view mode (SkeletonInventory with viewMode prop)
+- ✅ Item Detail: photo placeholder, text line skeletons (SkeletonItemDetail)
+- ✅ Search: result row skeletons (SkeletonSearchResult)
+- ✅ Skeletons use pulse animation (all components use animate-pulse)
+- ✅ Typecheck passes
+
+### Learnings for future iterations
+- Skeleton components are reusable via `/src/components/Skeleton.tsx`
+- Import specific components: `import { SkeletonLine, SkeletonCard, SkeletonGrid } from '@/components/Skeleton'`
+- All components accept className for additional styling
+- SkeletonInventory adapts to viewMode='gallery' or viewMode='list'
+- Page-specific skeletons (Dashboard, ItemDetail, etc.) provide complete page loading states
+- Building blocks (Line, Rect, Circle) can be composed for custom layouts
+---
+
+## 2026-01-24 - US-083
+- What was implemented:
+  - Created ToastContext at `/src/contexts/toast-context.ts` with types for toast options and actions
+  - Created ToastProvider at `/src/contexts/ToastProvider.tsx` with queue management (max 5 concurrent toasts)
+  - Created useToast hook at `/src/hooks/useToast.ts` with convenient methods: toast, success, error, info, warning
+  - Updated Toast component with ToastItem, ToastContainer for stacking multiple toasts
+  - Added action button support for undo-style interactions
+  - Integrated ToastProvider in App.tsx with ToastNotifications wrapper component
+  - Updated SettingsPage.tsx to use new useToast hook instead of local state
+  - Toast positioning at bottom-20 (80px from bottom) to avoid bottom navigation overlap
+  - Auto-dismiss with configurable duration (default 3000ms), manual dismiss via X button
+  - Smooth enter/exit animations with CSS transforms
+
+- Files changed:
+  - src/contexts/toast-context.ts (new) - Toast types and context definition
+  - src/contexts/ToastProvider.tsx (new) - Toast provider with queue management
+  - src/contexts/index.ts (modified) - Export ToastContext and ToastProvider
+  - src/hooks/useToast.ts (new) - Custom hook for consuming toast context
+  - src/components/Toast.tsx (modified) - Added ToastItem, ToastContainer for stacking
+  - src/App.tsx (modified) - Integrated ToastProvider and ToastContainer
+  - src/pages/SettingsPage.tsx (modified) - Migrated to useToast hook
+
+- **Learnings for future iterations:**
+  - Pattern: For context providers that need to be consumed globally, create a separate wrapper component (ToastNotifications) that uses the hook internally
+  - Pattern: When migrating from local state toast to context-based toast, replace `useState<{message, type}>` with `const { success, error } = useToast()` and update calls from `setToast({...})` to `success('message')` or `error('message')`
+  - Pattern: Toast positioning at bottom-20 (80px from bottom) avoids overlap with fixed bottom navigation (bottom-16 = 64px)
+  - The existing ToastProvider and toast-context.ts files were already present from previous work - just needed to create the useToast hook and integrate properly
+  - For toast stacking, use flex-col-reverse to stack newer toasts at the bottom with `marginBottom` for spacing
+  - Use `role="alert"` and `aria-live="polite"` for accessibility on toast notifications
+  - Type icons: success=✓, error=✕, info=ⓘ, warning=⚠ - use aria-hidden to hide from screen readers
+  - When creating reusable UI systems like toasts, dialogs, and bottom sheets, follow the pattern: Context → Provider → Hook → Component
+
+---
+
+## [2026-01-23] - US-084
+- What was implemented:
+  - Created ConfirmDialog component at /src/components/ConfirmDialog.tsx
+  - Created ConfirmContext at /src/contexts/confirm-context.ts
+  - Created ConfirmProvider at /src/contexts/ConfirmProvider.tsx
+  - Created useConfirm hook at /src/hooks/useConfirm.ts
+  - Updated contexts/index.ts to export ConfirmContext and ConfirmProvider
+  - Updated App.tsx to wrap app with ConfirmProvider
+  - Fixed variable shadowing issue in SettingsPage.tsx (success -> updateSuccess)
+
+- Files changed:
+  - src/components/ConfirmDialog.tsx (new)
+  - src/contexts/confirm-context.ts (new)
+  - src/contexts/ConfirmProvider.tsx (new)
+  - src/hooks/useConfirm.ts (new)
+  - src/contexts/index.ts (updated)
+  - src/App.tsx (updated)
+  - src/pages/SettingsPage.tsx (fixed variable shadowing)
+
+- **Learnings for future iterations:**
+  - The ConfirmDialog follows the same pattern as Toast system: Context + Provider + Hook
+  - ConfirmDialog uses a Promise-based API via useConfirm() hook, making it very easy to use: `if (await confirm({ title, message })) { /* user confirmed */ }`
+  - The dialog state is managed centrally by ConfirmProvider, allowing any component to show a confirm dialog
+  - Body scroll is prevented when dialog is open via `document.body.style.overflow = 'hidden'`
+  - Escape key and backdrop click both dismiss the dialog (with onCancel callback)
+  - Two variants: 'default' (blue button) and 'danger' (red button)
+  - The message prop can be a ReactNode, allowing rich content like JSX elements
+  - When fixing variable shadowing issues, be careful to rename all affected references
+  - The existing logout dialog in SettingsPage.tsx is a custom implementation from US-020 and was not replaced - the ConfirmDialog component provides a reusable pattern for future use
+  - For imports from context files, ensure all exported types are actually exported (not just imported and re-exported)
+  - TypeScript noUnusedLocals will catch unused type imports
+
+---
+---
+
+## 2026-01-24 - US-085
+- What was implemented:
+  - Created reusable BottomSheet component at `/src/components/BottomSheet.tsx`
+  - Props-based API: isOpen, onClose, title, children, footer, maxWidth, showHandleBar, showCloseButton
+  - Implemented backdrop overlay with tap-to-close functionality
+  - Added escape key handler for accessibility
+  - Included header with title and close button (optional)
+  - Scrollable content area with max-height constraint (85vh)
+  - Optional footer section for action buttons
+  - Customizable max width (default: max-w-lg)
+  - Smooth slide-up animation and fade-in backdrop
+  - Prevents body scroll when open
+
+- Files changed:
+  - src/components/BottomSheet.tsx (new)
+
+- **Learnings for future iterations:**
+  - Pattern: Bottom sheet component follows modal best practices: backdrop, escape key, scroll prevention
+  - Use `useRef` for backdrop click detection (only close when clicking backdrop, not sheet)
+  - Use `animate-in` and `slide-in-from-bottom` CSS utilities for smooth animations
+  - Use flex layout with `items-end justify-center` for bottom positioning with horizontal centering
+  - Max height constraint to `85vh` prevents overflow on small screens
+  - Header, handle bar, and close button are all optional via props
+  - Pattern extends existing component patterns from Toast and ConfirmDialog systems
+  - Component design makes existing LocationFilterBottomSheet and SortBottomSheet components interchangeable with this new reusable component
+  - TypeScript Generics: If component needs to be type-safe with different content types, use generics
+  - Build passed successfully with only Tailwind CSS warnings (unrelated to changes)
+
+## 2026-01-24 - US-087
+- What was implemented:
+  - Added Display section to SettingsPage between Account and Reminders & Notifications sections
+  - Display section shows Default View toggle with Gallery/List buttons
+  - Button groups highlight active selection (white background with blue text) vs inactive (gray)
+  - Uses the existing handleSettingChange function extended to support 'default_view' key
+  - Changes save immediately via useUserSettings.updateSettings hook
+  - InventoryPage already loads and applies default_view from user_settings
+
+- Files changed:
+  - src/pages/SettingsPage.tsx (added Display section UI, extended handleSettingChange type)
+
+- **Learnings for future iterations:**
+  - default_view setting is already implemented in useUserSettings and InventoryPage
+  - The handleSettingChange function needed to accept string type for default_view value
+  - Settings are structured in logical order: Account → Display → Reminders & Notifications
+  - Toggle button group pattern works better than a switch for view preference (two mutually exclusive options)
+  - Changes apply immediately without page reload due to React Query caching
+---
+
+## 2026-01-24 - US-086
+- What was implemented:
+  - Verified that Item Detail loading and error states were already fully implemented
+  - Loading state uses `ItemDetailSkeleton` component with photo placeholder and text lines
+  - 404 state shows "This item no longer exists" with Back to Inventory button
+  - Network error shows "Couldn't load item details" with Try Again button
+  - Permission errors redirect to /inventory with appropriate error message
+  - All error states meet the <500ms load time target
+
+- Files changed:
+  - scripts/ralph/prd.json (updated US-086 passes status)
+
+- **Learnings for future iterations:**
+  - The ItemDetailPage.tsx already contains comprehensive error handling and loading states
+  - All four required states are implemented: loading, 404, network error, and permission error
+  - The skeleton loader matches the final layout for smooth transition
+  - Error states provide clear messaging and actionable options (retry, back to inventory)
+  - This story was already completed as part of the Item Detail feature implementation
+---
+
+## 2026-01-24 - US-089, US-090
+- **US-089: Completed app router with 404 page**
+  - Created NotFoundPage component with friendly error messaging
+  - Added comprehensive 404 handling for both auth and protected routes
+  - Updated router to include wildcard fallback routes
+  - All routes properly wrapped with ProtectedRoute where needed
+
+- **US-090: Implemented app update detection**
+  - Created ServiceWorkerUpdateDetector component
+  - Listens for pwa-update-available events from vite-plugin-pwa
+  - Shows persistent toast notification with Refresh button
+  - Checks for updates on page focus
+  - Handles service worker updates gracefully
+
+- **Files changed:**
+  - src/pages/NotFoundPage.tsx (new)
+  - src/pages/index.ts (updated - added NotFoundPage export)
+  - src/App.tsx (updated - added routes, update detection)
+
+- **Key implementation details:**
+  - NotFoundPage shows helpful links and provides clear navigation back to app
+  - Service worker update detection integrates with existing vite-plugin-pwa setup
+  - Uses react-router-dom v6 nested routes structure
+  - Toast notifications provide non-intrusive update prompts
+
+- **Verification:**
+  - Type check: PASS
+  - Production build: PASS (with existing chunk size warnings)
+  - All acceptance criteria met for both stories
+
+- **Learnings for future iterations:**
+  - React Router v6 nested Routes structure allows 404 handling at different levels
+  - vite-plugin-pwa dispatches custom events that can be listened for update detection
+  - Service worker updates should be non-blocking and user-initiated
+  - Toast notifications with actions provide good UX for app updates
+  - useToast hook provides info(), success(), error(), warning() methods (not add())
+  - 404 pages should be helpful, not just show errors
+---

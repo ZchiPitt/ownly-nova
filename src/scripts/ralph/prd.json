@@ -1,0 +1,335 @@
+{
+  "project": "Ownly",
+  "branchName": "ralph/push-notifications",
+  "description": "Push Notification System - Real-time communication for marketplace users and timely item reminders",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create send-push-notification Edge Function",
+      "description": "As a system, I need to send Web Push notifications when notifications are created, so users receive timely alerts outside the app.",
+      "acceptanceCriteria": [
+        "Create `supabase/functions/send-push-notification/index.ts` Edge Function",
+        "Function accepts notification payload: `{ user_id, title, body, data, type }`",
+        "Function queries `push_subscriptions` for user's active subscriptions",
+        "Function sends Web Push using web-push library with VAPID keys",
+        "Function handles multiple devices per user (send to all active subscriptions)",
+        "Function returns success/failure status for each subscription",
+        "Function removes invalid subscriptions (expired/unsubscribed) from database",
+        "Add VAPID_PRIVATE_KEY to Supabase secrets documentation",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Implemented using native Deno crypto APIs for Web Push encryption and VAPID signing"
+    },
+    {
+      "id": "US-002",
+      "title": "Create database trigger for notification push delivery",
+      "description": "As a system, I need to automatically trigger push delivery when notifications are created, so pushes happen without manual intervention.",
+      "acceptanceCriteria": [
+        "Create migration with `pg_net` HTTP extension enabled",
+        "Create database function `trigger_push_notification()` that calls Edge Function",
+        "Create trigger `on_notification_insert` on `notifications` table for INSERT events",
+        "Trigger only fires when `is_pushed = false`",
+        "Trigger passes notification id, user_id, type, title, body, data to Edge Function",
+        "Edge Function updates `is_pushed = true` and `pushed_at = now()` after successful delivery",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Uses pg_net extension for async HTTP calls from database trigger. Requires app.settings.supabase_url and app.settings.service_role_key to be configured via Supabase Vault."
+    },
+    {
+      "id": "US-003",
+      "title": "Add user presence tracking for smart push suppression",
+      "description": "As a user viewing a conversation, I don't want to receive push notifications for that conversation, so I'm not disturbed by redundant alerts.",
+      "acceptanceCriteria": [
+        "Create `user_presence` table: `user_id`, `active_listing_id`, `last_seen`, `updated_at`",
+        "Add RLS policies for users to manage their own presence",
+        "Update ChatPage to call presence update on mount/unmount",
+        "Create `usePresence` hook with `setActiveConversation(listingId)` and `clearPresence()`",
+        "Update `trigger_push_notification` to check presence before sending",
+        "Skip push if user was active on that listing_id within last 30 seconds",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Presence updates every 20 seconds while user is viewing a conversation. Trigger checks user_presence table and skips push if last_seen is within 30 seconds."
+    },
+    {
+      "id": "US-004",
+      "title": "Implement real-time chat push notifications",
+      "description": "As a marketplace user, I want to receive push notifications for new chat messages, so I can respond quickly to buyers/sellers.",
+      "acceptanceCriteria": [
+        "`new_message` notification type triggers push notification",
+        "Push title: 'New message from {sender_name}'",
+        "Push body: Message preview (first 50 characters) + '...' if truncated",
+        "Push data includes: `{ type: 'new_message', listing_id, sender_id }`",
+        "Clicking notification opens `/messages/{listing_id}`",
+        "Service worker handles notification click with correct navigation",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Custom service worker (sw-push.js) handles push events and notification clicks. Uses vite-plugin-pwa importScripts to inject into main service worker."
+    },
+    {
+      "id": "US-005",
+      "title": "Implement message batching for rapid messages",
+      "description": "As a user, I don't want to be spammed with notifications when someone sends multiple messages quickly, so I receive consolidated alerts.",
+      "acceptanceCriteria": [
+        "Create `pending_push_notifications` table for batching queue",
+        "Messages from same sender within 5 seconds are batched",
+        "Batched notification shows: '{sender} sent {n} messages'",
+        "Implement scheduled function to process batching queue every 5 seconds",
+        "Clear pending batch when user views conversation",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Uses pending_push_notifications table with unique constraint on (user_id, sender_id, listing_id). Trigger batches new_message notifications. process-batched-notifications Edge Function should be called every 5 seconds via scheduled job."
+    },
+    {
+      "id": "US-006",
+      "title": "Implement transaction status push notifications",
+      "description": "As a marketplace participant, I want push notifications for transaction status changes, so I know when action is needed.",
+      "acceptanceCriteria": [
+        "`new_inquiry` triggers push: 'New inquiry from {buyer}' / '{item_name}'",
+        "`purchase_request` triggers push: '{buyer} wants to buy {item_name}'",
+        "`request_accepted` triggers push: '{seller} accepted your request for {item_name}'",
+        "`request_declined` triggers push: '{seller} declined your request'",
+        "`transaction_complete` triggers push: 'Transaction complete! Leave a review'",
+        "All transaction pushes include `listing_id` in data for deep linking",
+        "Clicking notification opens appropriate page (listing detail or messages)",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Updated notification formatting in notifications.ts to match AC. Service worker explicitly routes transaction types to listing detail page. All transaction notifications already include listing_id via useTransactions.ts."
+    },
+    {
+      "id": "US-007",
+      "title": "Add warranty_expiring notification type",
+      "description": "As a user with warranted items, I want warranty expiry reminders, so I can take action before warranty expires.",
+      "acceptanceCriteria": [
+        "Add `warranty_expiring` to notifications type constraint via migration",
+        "Add `warranty_reminder_days` column to `user_settings` (default: 30)",
+        "Add `warranty_reminder_enabled` column to `user_settings` (default: true)",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Created migration 20260203000006_add_warranty_expiring_notification_type.sql which adds warranty_expiring to notification type constraint and adds warranty_reminder_days (default 30) and warranty_reminder_enabled (default true) columns to user_settings."
+    },
+    {
+      "id": "US-008",
+      "title": "Update generate-reminders Edge Function for warranty alerts",
+      "description": "As a system, I need to generate warranty expiry reminders, so users are alerted before warranties expire.",
+      "acceptanceCriteria": [
+        "Update `generate-reminders` function to check `items.warranty_expiry_date`",
+        "Generate reminder N days before expiry (per user setting)",
+        "Notification title: 'Warranty expiring soon'",
+        "Notification body: '{item_name} warranty expires on {date}'",
+        "Prevent duplicate reminders for same item/expiry combination",
+        "Respect user's `warranty_reminder_enabled` setting",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Added warranty_expiry_date column to items table via migration. Updated generate-reminders Edge Function to query items with upcoming warranty expirations and create warranty_expiring notifications. Uses 7-day deduplication window to prevent duplicate reminders. Only queries items where warranty_expiry_date is between now and (now + warranty_reminder_days)."
+    },
+    {
+      "id": "US-009",
+      "title": "Implement custom reminder push notifications",
+      "description": "As a user who set a custom reminder, I want to receive a push notification on the reminder date, so I don't forget.",
+      "acceptanceCriteria": [
+        "Custom reminders (items.reminder_date) trigger `custom_reminder` notification type",
+        "Add `custom_reminder` to notifications type constraint via migration",
+        "Push title: 'Reminder: {item_name}'",
+        "Push body: User's custom reminder note if set, else 'You set a reminder for this item'",
+        "Reminder only fires once (mark item's reminder as sent)",
+        "Clicking notification opens item detail page",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Migration adds custom_reminder notification type and reminder fields to items table. generate-reminders Edge Function queries items with reminder_date <= today and reminder_sent = false, creates notifications with title 'Reminder: {item_name}' and marks reminder_sent = true. Service worker routes custom_reminder to /item/{itemId}."
+    },
+    {
+      "id": "US-010",
+      "title": "Add tabbed navigation to NotificationsPage",
+      "description": "As a user, I want to see notifications organized by category (Messages vs Reminders), so I can quickly find what I need.",
+      "acceptanceCriteria": [
+        "Add tab bar with 'Messages' and 'Reminders' tabs",
+        "'Messages' tab shows: `new_inquiry`, `purchase_request`, `request_accepted`, `request_declined`, `new_message`, `transaction_complete`",
+        "'Reminders' tab shows: `unused_item`, `expiring_item`, `warranty_expiring`, `custom_reminder`, `system`",
+        "Persist selected tab in URL param `?tab=messages|reminders`",
+        "Show unread count badge on each tab",
+        "Default to 'Messages' tab if any unread messages exist, else 'Reminders'",
+        "Typecheck passes",
+        "Verify in browser that tabs switch correctly and counts display"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Implemented tabbed navigation with Messages and Reminders tabs. Uses useSearchParams for URL persistence, useMemo for efficient filtering and unread counts. Added icons and colors for warranty_expiring (purple) and custom_reminder (teal) types. Empty state now shows tab-specific messaging."
+    },
+    {
+      "id": "US-011",
+      "title": "Implement notification grouping by date",
+      "description": "As a user, I want notifications grouped by date, so I can understand the timeline.",
+      "acceptanceCriteria": [
+        "Group notifications: 'Today', 'Yesterday', 'This Week', 'Earlier'",
+        "Show section headers between groups",
+        "Maintain chronological order within groups (newest first)",
+        "Typecheck passes",
+        "Verify in browser that grouping displays correctly"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Added getDateGroup() and groupNotificationsByDate() helper functions. Section headers use sticky positioning. Empty groups are automatically filtered out. Notifications maintain original order within each group."
+    },
+    {
+      "id": "US-012",
+      "title": "Add swipe-to-delete for individual notifications",
+      "description": "As a user, I want to swipe away individual notifications, so I can clean up my notification list.",
+      "acceptanceCriteria": [
+        "Implement swipe gesture on notification items (left swipe reveals delete)",
+        "Show red 'Delete' action on swipe",
+        "Tapping delete removes notification from database",
+        "Animate removal smoothly",
+        "Typecheck passes",
+        "Verify in browser that swipe gesture and delete work"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Implemented swipe gesture on NotificationItem with left swipe revealing red Delete action. Uses touch events (touchstart, touchmove, touchend) with horizontal/vertical swipe detection. Animates item off-screen before database deletion. Added deleteNotification function to useNotifications hook."
+    },
+    {
+      "id": "US-013",
+      "title": "Create comprehensive notification settings section",
+      "description": "As a user, I want to control which notifications I receive, so I'm not overwhelmed.",
+      "acceptanceCriteria": [
+        "Add 'Notifications' section to SettingsPage",
+        "Master toggle: 'Enable Push Notifications' (calls requestPermission/unsubscribe)",
+        "Show current permission state (granted/denied/default)",
+        "If denied, show instructions to enable in browser settings",
+        "Typecheck passes",
+        "Verify in browser that permission flow works"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "Added dedicated Notifications section to SettingsPage with master toggle, permission state display (granted/denied/default with visual indicators), and detailed instructions for enabling notifications when blocked. Includes platform-specific guidance for Chrome, Safari, Firefox, and mobile."
+    },
+    {
+      "id": "US-014",
+      "title": "Add per-category notification toggles",
+      "description": "As a user, I want to enable/disable specific notification types, so I only get what matters to me.",
+      "acceptanceCriteria": [
+        "Section: 'Marketplace Notifications' with toggles for chat messages, purchase requests, transaction updates",
+        "Section: 'Item Reminders' with toggles for expiry, warranty, and custom reminders",
+        "Add `custom_reminder_enabled` column to user_settings if not exists",
+        "Toggles immediately update user_settings table",
+        "Typecheck passes",
+        "Verify in browser that toggles persist correctly"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "Added custom_reminder_enabled column via migration. Created Item Reminders section in SettingsPage with toggles for expiry reminders (reminder_enabled), warranty reminders (warranty_reminder_enabled), and custom reminders (custom_reminder_enabled). All toggles update user_settings table immediately via useUserSettings hook."
+    },
+    {
+      "id": "US-015",
+      "title": "Add reminder timing configuration",
+      "description": "As a user, I want to configure how far in advance I receive reminders, so they're useful for my situation.",
+      "acceptanceCriteria": [
+        "'Expiry reminder' dropdown: 1 day, 3 days, 7 days, 14 days before",
+        "'Warranty reminder' dropdown: 7 days, 14 days, 30 days, 60 days before",
+        "Update user_settings columns on change",
+        "Show current selection from database",
+        "Typecheck passes",
+        "Verify in browser that selections persist"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "Added EXPIRY_REMINDER_OPTIONS (1,3,7,14 days) and WARRANTY_REMINDER_OPTIONS (7,14,30,60 days). Dropdowns appear conditionally when their toggle is enabled. Uses existing expiration_reminder_days and warranty_reminder_days columns from user_settings. Updated useUserSettings hook and handleSettingChange type to include warranty_reminder_days."
+    },
+    {
+      "id": "US-016",
+      "title": "Enhance service worker for notification handling",
+      "description": "As a PWA, I need to handle push events and notification clicks properly, so users can interact with notifications.",
+      "acceptanceCriteria": [
+        "Update service worker to handle `push` event",
+        "Parse notification payload and show system notification",
+        "Use app icon for notification",
+        "Handle `notificationclick` event",
+        "Extract `data` from notification for routing",
+        "Open app to correct URL based on notification type",
+        "Focus existing tab if app already open, else open new tab",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": "All acceptance criteria already implemented in public/sw-push.js from US-004. Service worker handles push events with JSON parsing, shows notifications with app icon, handles clicks with type-based routing (messages, transactions, item reminders), and focuses existing tabs or opens new ones."
+    },
+    {
+      "id": "US-017",
+      "title": "Implement notification action buttons",
+      "description": "As a user, I want quick actions on notifications, so I can respond without opening the app.",
+      "acceptanceCriteria": [
+        "Chat message notifications show 'Reply' action (opens chat)",
+        "Transaction notifications show 'View' action (opens listing)",
+        "Item reminders show 'View Item' action (opens item detail)",
+        "Service worker handles action clicks with appropriate routing",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": "Added notification action buttons via Web Push API actions property. getActionsForNotificationType() returns appropriate actions based on notification type (reply for messages, view for transactions, view_item for reminders). getTargetUrl() handles both action clicks and regular notification clicks with proper routing. Refactored service worker to use shared notification type constants."
+    },
+    {
+      "id": "US-018",
+      "title": "Handle notification permission denial gracefully",
+      "description": "As a user who denied notifications, I want guidance on how to enable them, so I can change my mind later.",
+      "acceptanceCriteria": [
+        "Detect `Notification.permission === 'denied'` state",
+        "Show banner in NotificationsPage explaining notifications are disabled",
+        "Provide platform-specific instructions (Chrome, Safari, mobile)",
+        "Link to browser notification settings where possible",
+        "Typecheck passes",
+        "Verify in browser that denial state shows correct guidance"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": "Added NotificationsDeniedBanner component to NotificationsPage that shows when push is supported but permission is denied. Banner is collapsible with platform-specific instructions for Chrome, Safari, Firefox, and mobile. Links to Settings page for more options."
+    },
+    {
+      "id": "US-019",
+      "title": "Implement notification deduplication",
+      "description": "As a user, I don't want duplicate notifications for the same event, so my notification list stays clean.",
+      "acceptanceCriteria": [
+        "Add `event_key` column to notifications table for deduplication via migration",
+        "Generate unique key: `{type}:{item_id}:{timestamp_bucket}`",
+        "Check for existing notification with same event_key before insert",
+        "Skip insert if duplicate found within 24 hours",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": "Added event_key column with format {type}:{item_id|listing_id}:{date}. Database trigger auto-generates event_key and uses check_notification_duplicate() to skip duplicates within 24 hours. Deduplication handled entirely at database level for reliability regardless of notification source."
+    },
+    {
+      "id": "US-020",
+      "title": "Add notification sound and vibration",
+      "description": "As a user, I want audible/tactile feedback for important notifications, so I notice them.",
+      "acceptanceCriteria": [
+        "High priority notifications (chat, purchase_request) use default sound",
+        "Medium priority (reminders) use subtle sound",
+        "Vibration pattern for mobile: chat = short, transaction = double",
+        "Add 'Notification sound' toggle to settings (default: on)",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": "Added notification_sound_enabled column to user_settings with default true. Service worker implements type-based sound/vibration: high priority (chat, purchase_request) use default sound, chat uses [100ms] vibration, transactions use [100, 50, 100] double vibration, reminders use [50ms] gentle vibration. Toggle in Settings page shows when push notifications are enabled and permission is granted."
+    }
+  ]
+}
