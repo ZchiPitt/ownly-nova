@@ -73,13 +73,6 @@ export function LandingPage() {
                         >
                             Entry my ownly space
                         </Link>
-                        <Link
-                            to="/dashboard"
-                            className="w-full bg-white text-[#8d7b6d] font-bold py-6 rounded-[2rem] border-2 border-[#f5ebe0] active:scale-95 transition-all text-base flex items-center justify-center gap-4 soft-shadow hover:bg-[#fdf8f2]"
-                        >
-                            <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="google" />
-                            Connect with Google
-                        </Link>
                     </div>
                 </div>
 
